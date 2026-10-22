@@ -1,0 +1,86 @@
+# SmartControl — Configuración de .gitignore
+# Tecnologías previstas: C#, .NET, Android Studio, Kotlin, Wear OS y Windows
+
+# =====================================================================
+# 1. Windows (Sistema Operativo)
+# =====================================================================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# =====================================================================
+# 2. C# y .NET (Aplicación complementaria de Windows)
+# =====================================================================
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+project.lock.json
+project.fragment.lock.json
+TestResult.xml
+[Tt]est[Rr]esult*/
+*.VisualState.xml
+*.nupkg
+*.snupkg
+PublishScripts/
+ClientBin/
+~$*
+
+# =====================================================================
+# 3. Android Studio, Kotlin y Wear OS (Aplicación de Smartwatch)
+# =====================================================================
+*.iml
+.gradle/
+.kotlin/
+local.properties
+.idea/
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+**/build/
+!**/gradle/wrapper/gradle-wrapper.jar
+*.apk
+*.aab
+*.ap_
+*.aab_
+*.dex
+*.class
+gen/
+proguard/
+*.jks
+*.keystore
+keystore.properties
+output-metadata.json
+lint-results*.xml
+lint-results*.html
+
+# =====================================================================
+# 4. Inteligencia Artificial Local y Pruebas Temporales
+# =====================================================================
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.tmp
+*.temp
+*.log
+.env
+.env.*
+
