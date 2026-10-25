@@ -68,3 +68,15 @@ adb shell am start -S -n com.smartcontrol.watch/.MainActivity --ez simulation fa
 ```
 
 Versiones: AGP 9.4.1, Kotlin 2.2.10, Gradle 9.6.0, compileSdk/targetSdk 37, minSdk 30 (Wear OS 3+), Wear Compose 1.5.0.
+
+### Ejecutar en Android Studio
+
+1. *File → Open…* y selecciona la carpeta `watch-app` (no la raíz del repositorio).
+2. Espera a que termine *Gradle Sync* (la primera vez descarga las dependencias de Wear Compose y `aapt2`).
+3. *Tools → Device Manager → + → Create Virtual Device… → Wear OS →* **Wear OS Large Round** *→* elige una imagen de sistema Wear OS x86_64 y descárgala → *Finish*.
+4. En la barra superior, elige la configuración `app` y el emulador Wear OS, y pulsa **Run ▶**.
+5. En el reloj: desliza hacia arriba o abajo (o gira la corona) para elegir un modo y haz los gestos. En el emulador, usa el comando `replay_gesture` de arriba. Para ver el rechazo, abre la app con el comando `adb` de arriba.
+
+La interfaz no muestra identificadores internos (`MEDIA_PAUSE`, números de secuencia, códigos de rechazo). Esos detalles van al registro de diagnóstico, solo en compilaciones de depuración: `adb logcat -s SmartControl`.
+
+Pruebas unitarias: `.\gradlew.bat :app:testDebugUnitTest` (o clic derecho en `ControlStateTest` → *Run*).
