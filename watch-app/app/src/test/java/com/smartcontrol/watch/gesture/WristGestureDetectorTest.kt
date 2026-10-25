@@ -1,6 +1,7 @@
 package com.smartcontrol.watch.gesture
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -155,5 +156,57 @@ class WristGestureDetectorTest {
         val restless = List(150) { i -> SyntheticGestures.Sample(if (i % 2 == 0) 1.0f else -1.0f, 0f, 0f) }
         feeder.feed(restless)
         assertTrue(feeder.feed(twist(5.5f)).isEmpty())
+    }
+
+    // --- Espera mínima y reinicios del sensor ---
+
+    @Test
+    fun secondTwistDuringCooldownIsIgnored() {
+        val feeder = Feeder()
+        assertEquals(1, feeder.feed(SyntheticGestures.twistAndReturn(5.5f, restAfterMillis = 0)).size)
+        assertTrue(feeder.feed(twist(5.5f)).isEmpty())
+    }
+
+    @Test
+    fun cooldownSurvivesSensorRestart() {
+        val feeder = Feeder()
+        feeder.feed(twist(5.5f) + SyntheticGestures.returnOf(twist(5.5f)))
+        feeder.detector.onSensorRestart()
+        // Justo después del reinicio, aún dentro de la espera y sin reposo suficiente.
+        assertTrue(feeder.feed(twist(5.5f)).isEmpty())
+    }
+
+    @Test
+    fun disarmedStateSurvivesSensorRestart() {
+        val feeder = Feeder()
+        feeder.feed(twist(5.5f)) // muñeca girada, desarmado
+        feeder.detector.onSensorRestart()
+        feeder.skip(1_000) // el sensor estuvo parado 1 s
+        feeder.feed(rest(500))
+        // El regreso tras el reinicio no cuenta como gesto contrario.
+        assertTrue(feeder.feed(SyntheticGestures.returnOf(twist(5.5f))).isEmpty())
+    }
+
+    @Test
+    fun sensorRestartDiscardsPartialGestureAndRequiresRest() {
+        val feeder = Feeder()
+        assertTrue(feeder.feed(List(3) { SyntheticGestures.Sample(5.5f, 0f, 0f) }).isEmpty())
+        feeder.detector.onSensorRestart()
+        // El resto del movimiento interrumpido no produce un evento.
+        assertTrue(feeder.feed(listOf(SyntheticGestures.Sample(5.5f, 0f, 0f), SyntheticGestures.Sample(0f, 0f, 0f))).isEmpty())
+        // Tras reposar el tiempo de reasentamiento, vuelve a funcionar.
+        feeder.feed(rest(3_200))
+        assertEquals(listOf(WristGesture.TWIST_IN), recognized(feeder.feed(twist(-5.5f))))
+    }
+
+    @Test
+    fun timestampsGoingBackwardsAreIgnored() {
+        val detector = WristGestureDetector()
+        detector.onSample(10 * step, 0f, 0f, 0f)
+        // Muestras "del pasado" (p. ej. reales tras una serie sintética) no inician ni cierran gestos.
+        assertNull(detector.onSample(5 * step, 5.5f, 0f, 0f))
+        assertNull(detector.onSample(6 * step, 0f, 0f, 0f))
+        val feeder = Feeder(detector).apply { nowNanos = 10 * step }
+        assertEquals(listOf(WristGesture.TWIST_OUT), recognized(feeder.feed(twist(5.5f))))
     }
 }
