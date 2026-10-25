@@ -63,6 +63,15 @@ Enviado cuando un gesto ha sido reconocido y asociado a una acción según el mo
 }
 ```
 
+**Gestos del reloj (implementación actual, `watch-app`).** Reconocedor por reglas, sin aprendizaje automático (primera etapa de ADR-03):
+
+| `gestureId` | Movimiento | `PRESENTATION` | `MULTIMEDIA` |
+|---|---|---|---|
+| `WRIST_TWIST_OUT` | Giro rápido de la muñeca "hacia fuera" (ωx > 0) | `SLIDE_NEXT` | `MEDIA_PLAY` |
+| `WRIST_TWIST_IN` | Giro rápido de la muñeca "hacia dentro" (ωx < 0) | `SLIDE_PREVIOUS` | `MEDIA_PAUSE` |
+
+El sentido "hacia fuera / hacia dentro" está pendiente de validar en un reloj real (depende de la muñeca y de la posición de la corona). En el reloj, `confidence` es una puntuación heurística en [0, 1] (intensidad del pico × dominancia del eje), no una probabilidad calibrada; el reloj no genera comandos por debajo de 0,80. Todavía no se envía ningún mensaje: no hay transporte.
+
 ### 3.2. Mensaje de Respuesta / Confirmación (`COMMAND_RESPONSE`)
 Enviado desde Windows hacia el smartwatch para confirmar la ejecución o informar el motivo de rechazo (RF-09, RF-10, RF-IA-06):
 
@@ -136,7 +145,7 @@ Antes de que la aplicación de Windows (C# / .NET) ejecute cualquier acción, to
    - `messageId` no debe haberse procesado previamente en la ventana reciente.
    - `timestampUtc` no debe exceder una ventana máxima de antigüedad permitida (evitando que comandos encolados durante una desconexión se ejecuten tardíamente de forma inesperada).
 5. **Umbral de confianza (RF-11, RF-IA-04):**
-   - `confidence` debe ser un valor numérico en el rango $[0.0, 1.0]$ y ser mayor o igual al umbral mínimo configurado (por ejemplo, $\ge 0.80$).
+   - `confidence` debe ser un valor numérico en el rango $[0.0, 1.0]$ y ser mayor o igual al umbral mínimo configurado (por ejemplo, $\ge 0.80$). El reloj aplica el mismo umbral de 0,80 antes de generar un comando; Windows debe validarlo de nuevo de forma independiente.
 6. **Validación de modo y lista blanca de seguridad (RF-04, RF-15, RNF-06):**
    - `activeMode` debe ser exclusivamente `PRESENTATION` o `MULTIMEDIA`.
    - `requestedAction` debe existir en la lista blanca definida en [security-allowlist.md](security-allowlist.md) y corresponder al `activeMode` declarado.
