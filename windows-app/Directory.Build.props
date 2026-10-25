@@ -1,0 +1,11 @@
+<Project>
+  <!-- Opciones comunes de todos los proyectos de windows-app. -->
+  <PropertyGroup>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- Los usings son explícitos para que el código también compile con tools/build-nosdk.ps1. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>
