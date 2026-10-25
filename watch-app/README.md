@@ -50,3 +50,19 @@ Pantallas (deslizando hacia arriba o abajo, o girando la corona):
 4. **Ayuda** (*Cómo usarlo*): *Elige un modo*, *Gira la muñeca*, *Mira el resultado*.
 
 Tras cada gesto aparece una ventana que se cierra sola: **Comando aceptado** (verde), **No se pudo realizar la acción** (rojo, con el motivo) o **Gesto no reconocido** (rojo). Tocar una fila de la guía envía el mismo comando, solo como alternativa de prueba; no se indica en pantalla.
+
+### Qué está probado y qué falta
+
+- Probado **con series sintéticas** (pruebas unitarias y reproducción en el emulador por el mismo reconocedor): reconocimiento de los dos giros, rechazo de giros débiles, sacudidas, otros ejes y giros lentos, regreso de la muñeca (con y sin pausa), espera mínima, reinicios del sensor, umbral exacto de 0,80 y el recorrido completo hasta la ventana de confirmación.
+- La consola del emulador **solo actualiza el giroscopio una vez por segundo**, así que no puede imitar un giro rápido. Con el sensor real del emulador solo se ha comprobado el rechazo de un giro lento. Los giros rápidos se prueban en depuración reproduciendo una serie sintética por el mismo reconocedor:
+  ```powershell
+  adb shell am start -n com.smartcontrol.watch/.MainActivity -f 0x20000000 --es replay_gesture out   # in, out_hold, return, weak, shake, slow, cross
+  ```
+- Limitaciones conocidas de las pruebas: las series sintéticas tienen forma de escalón, sin ruido; un giro de ida y vuelta muy rápido (ciclo de ~200 ms) puede rechazarse como sacudida según dónde caigan las muestras; y hace falta un pico de unos 4,5 rad/s para reconocerlo de forma fiable.
+- **Pendiente**: validar en un reloj real los umbrales, el tiempo de reasentamiento de 3 s, el comportamiento con la pantalla apagada y el sentido "hacia fuera / hacia dentro" (muñeca izquierda y derecha, posición de la corona), medir la tasa de aciertos (≥ 90 %, RNF-02) y de falsos positivos con movimientos cotidianos (RNF-03), y decidir si se añade aprendizaje automático (ADR-03). Para calibrar: `adb shell setprop log.tag.SmartControlSensor VERBOSE` registra cada muestra del giroscopio (solo en depuración).
+
+**Simulación (solo lógica interna).** Los comandos aceptados se simulan en el reloj. La interfaz no muestra etiquetas de simulación. En compilaciones de **depuración** se puede desactivar al abrir la app para probar el rechazo sin conexión (en release se ignora):
+
+```powershell
+adb shell am start -S -n com.smartcontrol.watch/.MainActivity --ez simulation false
+```
