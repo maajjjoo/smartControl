@@ -1,5 +1,8 @@
 package com.smartcontrol.watch
 
+import com.smartcontrol.watch.gesture.GestureEvent
+import com.smartcontrol.watch.gesture.UnclearReason
+import com.smartcontrol.watch.gesture.WristGesture
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -77,6 +80,47 @@ class ControlStateTest {
         val state = ControlState().sendCommand(Command.SLIDE_NEXT)
         assertSame(state, state.selectMode(ControlMode.PRESENTATION))
         assertSame(state, state.setSimulation(true))
+    }
+
+    @Test
+    fun gesturesMapToTheActiveModeCommands() {
+        assertEquals(Command.SLIDE_NEXT, commandFor(ControlMode.PRESENTATION, WristGesture.TWIST_OUT))
+        assertEquals(Command.SLIDE_PREVIOUS, commandFor(ControlMode.PRESENTATION, WristGesture.TWIST_IN))
+        assertEquals(Command.MEDIA_PLAY, commandFor(ControlMode.MULTIMEDIA, WristGesture.TWIST_OUT))
+        assertEquals(Command.MEDIA_PAUSE, commandFor(ControlMode.MULTIMEDIA, WristGesture.TWIST_IN))
+        // Cada gesto produce siempre un comando de la lista blanca de su modo.
+        for (mode in ControlMode.entries) for (gesture in WristGesture.entries) {
+            assertEquals(mode, commandFor(mode, gesture).mode)
+        }
+    }
+
+    @Test
+    fun recognizedGestureGoesThroughValidation() {
+        val state = ControlState().selectMode(ControlMode.MULTIMEDIA)
+            .onGesture(GestureEvent.Recognized(WristGesture.TWIST_IN, 0.95f))
+        assertEquals(CommandResult.Simulated(Command.MEDIA_PAUSE, 1), state.lastResult)
+    }
+
+    @Test
+    fun recognizedGestureIsRejectedWithoutConnection() {
+        val state = ControlState().setSimulation(false)
+            .onGesture(GestureEvent.Recognized(WristGesture.TWIST_OUT, 0.95f))
+        assertEquals(CommandResult.Rejected(Command.SLIDE_NEXT, RejectReason.NO_CONNECTION), state.lastResult)
+        assertEquals(0, state.sentCount)
+    }
+
+    @Test
+    fun unclearGestureSendsNothing() {
+        val state = ControlState().onGesture(GestureEvent.Unclear(0.6f, UnclearReason.WEAK))
+        assertEquals(CommandResult.GestureUnrecognized(0.6f, UnclearReason.WEAK), state.lastResult)
+        assertEquals(0, state.sentCount)
+    }
+
+    @Test
+    fun gestureBelowConfidenceThresholdSendsNothing() {
+        val state = ControlState().onGesture(GestureEvent.Recognized(WristGesture.TWIST_OUT, 0.79f))
+        assertEquals(CommandResult.GestureUnrecognized(0.79f, UnclearReason.WEAK), state.lastResult)
+        assertEquals(0, state.sentCount)
     }
 
 }
