@@ -1,5 +1,10 @@
 package com.smartcontrol.watch
 
+import com.smartcontrol.watch.gesture.GestureEvent
+import com.smartcontrol.watch.gesture.MIN_GESTURE_CONFIDENCE
+import com.smartcontrol.watch.gesture.UnclearReason
+import com.smartcontrol.watch.gesture.WristGesture
+
 /** Modos de control, con los mismos identificadores que el protocolo. */
 enum class ControlMode(val label: String) {
     PRESENTATION("Presentación"),
@@ -39,6 +44,21 @@ sealed interface CommandResult {
     /** Validado contra la lista blanca y ejecutado solo en modo simulación. */
     data class Simulated(val command: Command, val sequence: Int) : CommandResult
     data class Rejected(val command: Command, val reason: RejectReason) : CommandResult
+
+    /** Equivale a REJECTED_LOW_CONFIDENCE: el movimiento no se reconoció como gesto; no se envía nada. */
+    data class GestureUnrecognized(val confidence: Float, val reason: UnclearReason) : CommandResult
+}
+
+/** Qué comando produce cada gesto según el modo activo (RF-04, RF-IA-03). */
+fun commandFor(mode: ControlMode, gesture: WristGesture): Command = when (mode) {
+    ControlMode.PRESENTATION -> when (gesture) {
+        WristGesture.TWIST_OUT -> Command.SLIDE_NEXT
+        WristGesture.TWIST_IN -> Command.SLIDE_PREVIOUS
+    }
+    ControlMode.MULTIMEDIA -> when (gesture) {
+        WristGesture.TWIST_OUT -> Command.MEDIA_PLAY
+        WristGesture.TWIST_IN -> Command.MEDIA_PAUSE
+    }
 }
 
 data class ControlState(
@@ -72,4 +92,20 @@ data class ControlState(
         }
     }
 
+    /**
+     * Interpreta un gesto. Si no se reconoce o no llega al umbral de confianza, no se genera
+     * ningún comando. Si se reconoce, el comando pasa por la misma validación que [sendCommand].
+     * El umbral se vuelve a comprobar aquí (mismo [MIN_GESTURE_CONFIDENCE] que el reconocedor) por
+     * si el evento llega de otra fuente.
+     */
+    fun onGesture(event: GestureEvent): ControlState = when (event) {
+        is GestureEvent.Unclear ->
+            copy(lastResult = CommandResult.GestureUnrecognized(event.confidence, event.reason))
+        is GestureEvent.Recognized ->
+            if (event.confidence < MIN_GESTURE_CONFIDENCE) {
+                copy(lastResult = CommandResult.GestureUnrecognized(event.confidence, UnclearReason.WEAK))
+            } else {
+                sendCommand(commandFor(mode, event.gesture))
+            }
+    }
 }
