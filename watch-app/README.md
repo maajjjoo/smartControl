@@ -36,3 +36,17 @@ Reglas del reconocedor (eje X del giroscopio, que se supone alineado con el ante
 - Los gestos solo cuentan en las pantallas de modo, nunca en Inicio ni en Ayuda.
 - Un gesto reconocido pasa por **la misma validación** que antes (lista blanca del modo y conexión).
 - **El sentido no está validado.** "Hacia fuera" = velocidad angular positiva en X es una convención. El mismo movimiento anatómico da el signo contrario según la muñeca (izquierda o derecha) y la posición de la corona, y la app no tiene en cuenta el ajuste de Wear OS que gira la pantalla 180°. No se ajustará sin datos de un reloj real.
+
+### Ciclo de vida del sensor y pantalla apagada
+
+- El giroscopio se registra en `onResume` y se libera en `onPause` (a ~50 Hz, `SENSOR_DELAY_GAME`, sin permisos de alta frecuencia). No hay servicio en segundo plano ni modo ambiente.
+- **Comportamiento observado en el emulador**: con la pantalla apagada (estado *Dozing*), la actividad sigue en primer plano y **el giroscopio sigue registrado**, así que un gesto podría actuar con la pantalla oscura y sin que se vea la confirmación. El emulador no tiene tiempo de apagado de pantalla.
+- **Sin comprobar en un reloj real**: lo habitual es que, tras el tiempo de espera, el reloj vuelva a la esfera y la app pase a segundo plano; entonces los gestos dejarían de funcionar hasta volver a abrirla.
+- Decisión pendiente, que requiere medir batería y revisar las restricciones de Wear OS: pausar los gestos con la pantalla apagada, o mantenerlos (modo ambiente o actividad en curso). No se ha añadido ninguna operación en segundo plano.
+
+Pantallas (deslizando hacia arriba o abajo, o girando la corona):
+1. **Inicio**: *SmartControl*, *Desconectado · Equipo Windows sin vincular* y *Desliza hacia arriba*.
+2. **Presentación** y 3. **Multimedia**: *Realiza un gesto para controlar tu equipo*, guía con los dos gestos (los iconos muestran el giro y la fila se ilumina al reconocerlo) y estado de conexión. Si el reloj no tiene giroscopio, lo dice en lugar de la indicación.
+4. **Ayuda** (*Cómo usarlo*): *Elige un modo*, *Gira la muñeca*, *Mira el resultado*.
+
+Tras cada gesto aparece una ventana que se cierra sola: **Comando aceptado** (verde), **No se pudo realizar la acción** (rojo, con el motivo) o **Gesto no reconocido** (rojo). Tocar una fila de la guía envía el mismo comando, solo como alternativa de prueba; no se indica en pantalla.
