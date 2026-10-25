@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema claro para la ventana (sin fondo negro al abrir). El color exacto del fondo
+         se aplica desde ui/Theme.kt en MainActivity, para tener los colores en un solo sitio. -->
+    <style name="Theme.SmartControl" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>
