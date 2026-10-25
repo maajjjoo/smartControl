@@ -66,3 +66,5 @@ Tras cada gesto aparece una ventana que se cierra sola: **Comando aceptado** (ve
 ```powershell
 adb shell am start -S -n com.smartcontrol.watch/.MainActivity --ez simulation false
 ```
+
+Versiones: AGP 9.4.1, Kotlin 2.2.10, Gradle 9.6.0, compileSdk/targetSdk 37, minSdk 30 (Wear OS 3+), Wear Compose 1.5.0.
