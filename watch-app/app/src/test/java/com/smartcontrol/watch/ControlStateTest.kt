@@ -1,6 +1,7 @@
 package com.smartcontrol.watch
 
 import com.smartcontrol.watch.gesture.GestureEvent
+import com.smartcontrol.watch.gesture.MIN_GESTURE_CONFIDENCE
 import com.smartcontrol.watch.gesture.UnclearReason
 import com.smartcontrol.watch.gesture.WristGesture
 import org.junit.Assert.assertEquals
@@ -123,4 +124,14 @@ class ControlStateTest {
         assertEquals(0, state.sentCount)
     }
 
+    @Test
+    fun gestureAtExactThresholdIsAccepted() {
+        val state = ControlState().onGesture(GestureEvent.Recognized(WristGesture.TWIST_OUT, MIN_GESTURE_CONFIDENCE))
+        assertEquals(CommandResult.Simulated(Command.SLIDE_NEXT, 1), state.lastResult)
+    }
+
+    @Test
+    fun thresholdIsTheProtocolValue() {
+        assertEquals(0.80f, MIN_GESTURE_CONFIDENCE, 0f)
+    }
 }
