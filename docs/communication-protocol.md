@@ -56,7 +56,7 @@ Enviado cuando un gesto ha sido reconocido y asociado a una acción según el mo
   "messageType": "COMMAND_REQUEST",
   "payload": {
     "activeMode": "PRESENTATION",
-    "gestureId": "SWIPE_RIGHT",
+    "gestureId": "WRIST_TWIST_OUT",
     "confidence": 0.94,
     "requestedAction": "SLIDE_NEXT"
   }
