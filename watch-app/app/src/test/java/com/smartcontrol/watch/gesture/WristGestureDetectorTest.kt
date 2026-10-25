@@ -70,4 +70,20 @@ class WristGestureDetectorTest {
         val event = Feeder().feed(SyntheticGestures.slow(millis = 1_200)).first() as GestureEvent.Unclear
         assertEquals(UnclearReason.TOO_SLOW, event.reason)
     }
+
+    // --- Umbral de confianza (0.80) ---
+
+    @Test
+    fun confidenceExactlyAtThresholdIsAccepted() {
+        // Pico de 4.0 rad/s sobre 5.0 → confianza 0.80 exacta.
+        val event = Feeder().feed(twist(4.0f)).single() as GestureEvent.Recognized
+        assertEquals(MIN_GESTURE_CONFIDENCE, event.confidence, 0f)
+    }
+
+    @Test
+    fun confidenceJustBelowThresholdIsRejected() {
+        val event = Feeder().feed(twist(3.99f)).single() as GestureEvent.Unclear
+        assertEquals(UnclearReason.WEAK, event.reason)
+        assertTrue(event.confidence < MIN_GESTURE_CONFIDENCE)
+    }
 }
