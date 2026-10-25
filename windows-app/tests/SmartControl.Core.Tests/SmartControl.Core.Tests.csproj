@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Ejecutor de pruebas propio, sin paquetes NuGet: dotnet run --project tests/SmartControl.Core.Tests -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SmartControl.Core\SmartControl.Core.csproj" />
+  </ItemGroup>
+
+</Project>
