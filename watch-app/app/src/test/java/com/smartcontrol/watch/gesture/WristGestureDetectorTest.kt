@@ -86,4 +86,74 @@ class WristGestureDetectorTest {
         assertEquals(UnclearReason.WEAK, event.reason)
         assertTrue(event.confidence < MIN_GESTURE_CONFIDENCE)
     }
+
+    // --- Regreso de la muñeca ---
+
+    @Test
+    fun returnMovementDoesNotTriggerOppositeGesture() {
+        val events = Feeder().feed(SyntheticGestures.twistAndReturn(5.5f))
+        assertEquals(listOf(WristGesture.TWIST_OUT), recognized(events))
+        assertEquals(1, events.size)
+    }
+
+    @Test
+    fun returnAfterPauseWithWristTurnedIsIgnored() {
+        for (pause in listOf(200L, 600L, 1_200L, 2_500L)) {
+            val events = Feeder().feed(SyntheticGestures.twistAndReturn(5.5f, pauseMillis = pause))
+            assertEquals("pausa $pause ms", listOf(WristGesture.TWIST_OUT), recognized(events))
+            assertEquals("pausa $pause ms", 1, events.size)
+        }
+    }
+
+    @Test
+    fun fastReturnIsIgnoredToo() {
+        val out = twist(5.5f)
+        val events = Feeder().feed(out + SyntheticGestures.returnOf(out, speedFraction = 1f))
+        assertEquals(listOf(WristGesture.TWIST_OUT), recognized(events))
+    }
+
+    @Test
+    fun newGestureIsAcceptedAfterReturningToRest() {
+        val feeder = Feeder()
+        val first = feeder.feed(SyntheticGestures.twistAndReturn(5.5f, restAfterMillis = 600))
+        val second = feeder.feed(SyntheticGestures.twistAndReturn(-5.5f))
+        assertEquals(listOf(WristGesture.TWIST_OUT), recognized(first))
+        assertEquals(listOf(WristGesture.TWIST_IN), recognized(second))
+    }
+
+    @Test
+    fun returningToRestDoesNotSkipTheCooldown() {
+        val feeder = Feeder()
+        // Giro, regreso y 300 ms de reposo: aún dentro de los 700 ms de espera desde el gesto.
+        feeder.feed(SyntheticGestures.twistAndReturn(5.5f, restAfterMillis = 300))
+        assertTrue(feeder.feed(twist(-5.5f)).isEmpty())
+    }
+
+    @Test
+    fun stillnessWithoutReturningDoesNotRearmUntilResettle() {
+        val feeder = Feeder()
+        feeder.feed(twist(5.5f)) // la muñeca se queda girada
+        feeder.feed(rest(2_000))
+        // Un giro hacia dentro antes del tiempo de reasentamiento es el regreso: se ignora.
+        assertTrue(feeder.feed(twist(-5.5f)).isEmpty())
+    }
+
+    @Test
+    fun longPauseInNewPositionBecomesNeutral() {
+        // Limitación documentada: tras 3 s quieta en la nueva posición, el siguiente giro sí cuenta.
+        val feeder = Feeder()
+        feeder.feed(twist(5.5f))
+        feeder.feed(rest(3_200))
+        assertEquals(listOf(WristGesture.TWIST_IN), recognized(feeder.feed(twist(-5.5f))))
+    }
+
+    @Test
+    fun continuousMovementKeepsRecognizerDisarmed() {
+        val feeder = Feeder()
+        feeder.feed(SyntheticGestures.twistAndReturn(5.5f, restAfterMillis = 0))
+        // Movimiento constante por debajo del umbral de inicio pero por encima del de reposo.
+        val restless = List(150) { i -> SyntheticGestures.Sample(if (i % 2 == 0) 1.0f else -1.0f, 0f, 0f) }
+        feeder.feed(restless)
+        assertTrue(feeder.feed(twist(5.5f)).isEmpty())
+    }
 }
