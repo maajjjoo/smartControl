@@ -31,6 +31,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG limita el registro de diagnóstico (CommandLog) a depuración.
+        buildConfig = true
     }
 }
 
