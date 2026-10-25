@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Núcleo sin interfaz: protocolo, validación, receptor local, ejecutor simulado y registro. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>SmartControl.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>
