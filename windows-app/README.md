@@ -23,3 +23,21 @@ Comportamiento:
 - El panel de prueba envía mensajes reales por loopback, firmados con un token aleatorio que se genera en cada arranque y solo existe en memoria. **Son comandos explícitos, no gestos reconocidos**, y una prueba en loopback no demuestra la comunicación con el reloj.
 - La interfaz solo muestra valores validados o generados por la aplicación, nunca texto recibido.
 - El registro está en `%LOCALAPPDATA%\SmartControl\logs\smartcontrol-AAAAMMDD.log` (un archivo por día, se borran los de más de 7 días). Guarda la fecha, el estado, el motivo, la acción validada y el `messageId` validado; nunca el token ni el mensaje.
+
+### Compilar y probar
+
+Con el **.NET 8 SDK** instalado (forma oficial):
+
+```powershell
+dotnet run --project windows-app/tests/SmartControl.Core.Tests
+dotnet run --project windows-app/src/SmartControl.Desktop
+```
+
+Sin el SDK (provisional): `tools/build-nosdk.ps1` compila con el compilador C# de Visual Studio Build Tools y los ensamblados del runtime .NET 8 ya instalados. No descarga nada. La salida queda en `windows-app/bin/nosdk`.
+
+```powershell
+.\windows-app\tools\build-nosdk.ps1 -Test   # compila y ejecuta las pruebas
+.\windows-app\tools\build-nosdk.ps1 -Run    # compila y abre la aplicación
+```
+
+Con esta vía la aplicación arranca mediante `dotnet SmartControl.dll`, así que también aparece una ventana de consola.
