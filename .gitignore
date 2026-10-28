@@ -76,6 +76,10 @@ lint-results*.html
 # =====================================================================
 __pycache__/
 *.py[cod]
+# Grabaciones reales de sensores (datos personales de movimiento): nunca se suben.
+ai-module/data/
+# Modelos y reportes generados por el entrenamiento.
+ai-module/out/
 .venv/
 venv/
 *.tmp
