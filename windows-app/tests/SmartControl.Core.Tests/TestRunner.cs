@@ -65,6 +65,7 @@ internal static class TestRunner
         tests.AddRange(SensorWindowTests.All());
         tests.AddRange(MovementFeaturesTests.All());
         tests.AddRange(GestureModelTests.All());
+        tests.AddRange(GestureModelLoaderTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();
