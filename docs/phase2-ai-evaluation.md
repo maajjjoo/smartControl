@@ -113,8 +113,26 @@ Las pruebas usan series y modelos sintéticos escritos a mano para comprobar el 
 | Parte | Estado |
 |---|---|
 | Decisiones de arquitectura | Aprobadas (ADR-01, ADR-03, ADR-05, ADR-06) |
-| Ventana de sensores y características `gyro-v1` (C#) | En implementación (etapa 2) |
-| Formato, carga e inferencia del modelo (C#) | Pendiente (etapa 2) |
-| Selección contextual e integración con el validador | Pendiente (etapa 2) |
-| Captura de datos y entrenamiento | Pendiente: requiere un reloj físico (etapa 3) |
+| Ventana de sensores y características `gyro-v1` (C#) | **Hecho**, con pruebas |
+| Formato, carga con SHA-256 e inferencia del modelo (C#) | **Hecho**, con pruebas y modelos sintéticos |
+| Decisión (umbral, `NO_GESTURE`) y selección contextual | **Hecho**, con pruebas |
+| Integración con el `CommandValidator` existente | **Hecho** (sin modificar el validador); sin conectar al receptor ni a la interfaz |
+| Medición de latencia en Windows | **Hecho** con datos sintéticos (§8.1) |
+| Modelo entrenado | **No existe** |
+| Captura de datos y entrenamiento | **Bloqueado**: requiere un reloj físico (etapa 3) |
 | Transporte y mensaje `SENSOR_WINDOW` | Fuera de esta etapa; depende de ADR-02 (etapa 4) |
+
+## 11. Pasos bloqueados hasta tener grabaciones de un reloj físico
+
+Se pueden preparar sin el reloj (y se marcarán como sintéticos o sin datos), pero **no se pueden completar**:
+
+1. **Grabar datos etiquetados** (§5): gestos, negativos, consentimiento y participantes reales.
+2. **Entrenar** cualquier modelo con `dataSource: physical-watch`. El cargador exige que ese modelo declare participantes, número de ventanas y el resumen SHA-256 del conjunto de datos.
+3. **Elegir la arquitectura** (regresión logística o MLP) comparándolas con datos reales.
+4. **Evaluar**: precisión y exhaustividad por clase, matriz de confusión, tasa de rechazo, falsos positivos por hora y calibración (§8).
+5. **Comparar con el reconocedor por reglas** del reloj sobre los mismos datos.
+6. **Validar el sentido de los giros** según la muñeca y la posición de la corona antes de cambiar ninguna asociación.
+7. **Decidir si el acelerómetro aporta** (comparar `gyro-v1` con un conjunto que lo use).
+8. **Medir la latencia de extremo a extremo** (RNF-01), que necesita además el transporte (ADR-02).
+
+Hasta entonces no se afirmará ninguna precisión real, y ningún modelo sintético se instalará fuera de las pruebas.
