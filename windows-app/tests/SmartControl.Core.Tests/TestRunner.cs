@@ -66,6 +66,7 @@ internal static class TestRunner
         tests.AddRange(MovementFeaturesTests.All());
         tests.AddRange(GestureModelTests.All());
         tests.AddRange(GestureModelLoaderTests.All());
+        tests.AddRange(DenseClassifierTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();
