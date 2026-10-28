@@ -70,6 +70,7 @@ internal static class TestRunner
         tests.AddRange(GestureDecisionTests.All());
         tests.AddRange(ContextualActionSelectorTests.All());
         tests.AddRange(RecognitionPipelineTests.All());
+        tests.AddRange(RecognitionLatencyTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();

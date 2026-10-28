@@ -89,6 +89,21 @@ JSON con: versión del esquema, versión del modelo, conjunto de característica
 - **Comparación con el reconocedor de reglas** sobre los mismos datos: el modelo solo se adopta si lo mejora.
 - Objetivos: ≥ 90 % de reconocimientos correctos (RNF-02); latencia de extremo a extremo ≤ 1 s en el 95 % de los casos (RNF-01). La inferencia en Windows se medirá aparte, con su configuración documentada.
 
+### 8.1. Latencia medida en Windows (2026-10-28)
+
+Prueba `latencia: características + inferencia y recorrido completo` (`windows-app/tests/SmartControl.Core.Tests/RecognitionLatencyTests.cs`), ejecutada con `windows-app/tools/build-nosdk.ps1 -Test`.
+
+- **Equipo:** Intel Core i9-13900H (20 procesadores lógicos), Windows 11 (10.0.26200), .NET 8.0.25, compilación optimizada.
+- **Entrada:** ventana **sintética** de 50 muestras (1 s a 50 Hz) y el modelo **sintético** de una capa de las pruebas. 1000 repeticiones de calentamiento y 10 000 medidas.
+- **Resultado (tres ejecuciones):**
+
+| Tramo | p50 | p95 | Máximo |
+|---|---|---|---|
+| Características + inferencia | 15–15,2 µs | 20,3–21,3 µs | 0,26–1,0 ms |
+| Recorrido completo con el validador existente | 43,1–43,5 µs | 69,5–79,7 µs | 1,9–3,2 ms |
+
+Los máximos son picos aislados del sistema (planificación, recolección de memoria). **No es la latencia de RNF-01**: no incluye la captura en el reloj, la segmentación ni el transporte, que aún no existe. Un MLP con una capa oculta añade pocas operaciones; se medirá de nuevo con el modelo definitivo.
+
 ## 9. Datos sintéticos frente a datos reales
 
 Las pruebas usan series y modelos sintéticos escritos a mano para comprobar el código (formato, cálculos, rechazos). **No miden la precisión** y siempre se identifican como `synthetic-fixture`. No se afirmará ninguna precisión real hasta entrenar y evaluar con datos representativos de un reloj físico.
