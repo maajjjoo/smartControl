@@ -14,15 +14,31 @@ Aplicación de escritorio **WinForms sobre .NET 8**. Las acciones **se simulan**
 
 | Proyecto | Contenido |
 |---|---|
-| `src/SmartControl.Core` | Lista blanca (`CommandAllowlist`), validador (`CommandValidator`), receptor TCP solo en `127.0.0.1` (`LocalCommandReceiver`), ejecutor simulado y registro de eventos. No depende de la interfaz. |
+| `src/SmartControl.Core` | Lista blanca (`CommandAllowlist`), validador (`CommandValidator`), receptor TCP solo en `127.0.0.1` (`LocalCommandReceiver`), ejecutor simulado, registro de eventos y reconocimiento local (`Recognition/`). No depende de la interfaz. |
 | `src/SmartControl.Desktop` | Ventana: estado del receptor, comandos recibidos con su resultado y panel de comandos de prueba. |
-| `tests/SmartControl.Core.Tests` | Pruebas del validador, del receptor (con clientes reales en loopback) y del registro. Sin paquetes NuGet. |
+| `tests/SmartControl.Core.Tests` | Pruebas del validador, del receptor (con clientes reales en loopback), del registro y del reconocimiento local. Sin paquetes NuGet. |
 
 Comportamiento:
 - El receptor escucha en `127.0.0.1:47800` y recibe JSON delimitado por salto de línea (máx. 4096 bytes), con las reglas de [communication-protocol.md §4](../docs/communication-protocol.md).
 - El panel de prueba envía mensajes reales por loopback, firmados con un token aleatorio que se genera en cada arranque y solo existe en memoria. **Son comandos explícitos, no gestos reconocidos**, y una prueba en loopback no demuestra la comunicación con el reloj.
 - La interfaz solo muestra valores validados o generados por la aplicación, nunca texto recibido.
 - El registro está en `%LOCALAPPDATA%\SmartControl\logs\smartcontrol-AAAAMMDD.log` (un archivo por día, se borran los de más de 7 días). Guarda la fecha, el estado, el motivo, la acción validada y el `messageId` validado; nunca el token ni el mensaje.
+
+### Reconocimiento local de gestos (`src/SmartControl.Core/Recognition`)
+
+Base de la inferencia del modelo de IA en Windows (ADR-01, ADR-03, ADR-06 en [architecture-decisions.md](../docs/architecture-decisions.md); detalle en [phase2-ai-evaluation.md](../docs/phase2-ai-evaluation.md)). **Todavía no hay ningún modelo entrenado** ni datos de un reloj físico: sin modelo, el reconocimiento está desactivado y rechaza todo. Aún no está conectado al receptor ni a la interfaz.
+
+| Componente | Función |
+|---|---|
+| `SensorWindow` | Ventana de giroscopio (acelerómetro opcional) ya segmentada por el reloj; valida número de muestras, tiempo, huecos, duración y rangos. |
+| `MovementFeatures` | 31 características deterministas `gyro-v1`, solo del giroscopio. |
+| `GestureModel` / `GestureModelLoader` | Formato JSON del modelo con procedencia de los datos (`physical-watch` o `synthetic-fixture`) y su resumen SHA-256. Rechaza modelos alterados, incoherentes o con umbral menor que 0,80; los sintéticos solo en pruebas. |
+| `DenseClassifier` | Inferencia en C# puro (regresión logística o MLP pequeño), sin paquetes NuGet. |
+| `GestureDecision` | Umbral de confianza y clase `NO_GESTURE`: ante la duda, no actuar. |
+| `ContextualActionSelector` | Modo activo (contexto de confianza) + gesto → acción candidata, solo dentro de la lista blanca del modo. |
+| `RecognitionPipeline` | Une todo y envía la candidata al `CommandValidator` existente, sin modificarlo. No ejecuta acciones: devuelve, como mucho, una `AllowedAction` validada. |
+
+Las pruebas usan ventanas y modelos **sintéticos** escritos a mano (`tests/SmartControl.Core.Tests/ModelFixtures.cs`): comprueban el código, no la precisión con movimientos reales. La latencia medida en este equipo está en [phase2-ai-evaluation.md §8.1](../docs/phase2-ai-evaluation.md).
 
 ### Compilar y probar
 
