@@ -64,6 +64,7 @@ internal static class TestRunner
         tests.AddRange(EventLogTests.All());
         tests.AddRange(SensorWindowTests.All());
         tests.AddRange(MovementFeaturesTests.All());
+        tests.AddRange(FeatureParityTests.All());
         tests.AddRange(GestureModelTests.All());
         tests.AddRange(GestureModelLoaderTests.All());
         tests.AddRange(DenseClassifierTests.All());
