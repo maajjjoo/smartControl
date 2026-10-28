@@ -34,13 +34,13 @@ Los valores numéricos (4096 bytes, 5000 ms, 2000 ms, 0.80, 1024 entradas) son *
 
 ## Decisiones propias de la PoC (para revisión)
 
-- **Campos desconocidos se rechazan.** El protocolo no define qué hacer con ellos; se eligió la opción estricta. Puede afectar a la compatibilidad futura (ver `docs/phase2-results.md`).
+- **Campos desconocidos se rechazan.** El protocolo no define qué hacer con ellos; se eligió la opción estricta. Puede afectar a la compatibilidad futura.
 - **`messageId` debe ser un UUID canónico en minúsculas**, como en el ejemplo del protocolo.
 - **`gestureId` se valida solo por formato** (`^[A-Z][A-Z0-9_]{0,63}$`). El SRS todavía no define el catálogo de gestos.
 - **`reasonCode`** tiene valores específicos (`MODE_ACTION_MISMATCH`, `STALE_MESSAGE`, …). El protocolo solo muestra `OK`.
 
 ## Limitaciones
 
-- El token de las pruebas es ficticio. El esquema de token en claro no protege frente a un atacante que pueda leer la red local; ver la recomendación de firmar con HMAC en `docs/phase2-results.md`.
+- El token de las pruebas es ficticio. El esquema de token en claro no protege frente a un atacante que pueda leer la red local; se recomienda firmar los mensajes con HMAC (pendiente de documentar en el protocolo).
 - La frescura depende de que los relojes del smartwatch y de Windows estén sincronizados. Esto no se ha medido.
 - Solo se valida `COMMAND_REQUEST`. `SENSOR_WINDOW`, `HANDSHAKE_*` y `PING`/`PONG` quedan fuera.

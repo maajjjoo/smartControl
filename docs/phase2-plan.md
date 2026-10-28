@@ -3,7 +3,7 @@
 **Fecha:** 2026-10-24
 **Base:** decisiones pendientes ADR-01 a ADR-04 de [architecture-decisions.md](architecture-decisions.md), sección 6 del [SRS](SRS.md) y [communication-protocol.md](communication-protocol.md).
 
-Cada PoC es pequeña e independiente. Las hipótesis **no** son decisiones. El estado real de cada una se recoge en [phase2-results.md](phase2-results.md).
+Cada PoC es pequeña e independiente. Las hipótesis **no** son decisiones. El resultado de cada una se recoge en el README de su carpeta en `poc/` y en la columna «Estado» de esta tabla.
 
 | PoC | Decisión que alimenta | Estado |
 |---|---|---|
@@ -26,7 +26,7 @@ Cada PoC es pequeña e independiente. Las hipótesis **no** son decisiones. El e
 - **Criterio de aceptación:** todas las pruebas pasan; ninguna prueba negativa produce `AllowedAction`; cada mutación de una regla de seguridad hace fallar al menos una prueba.
 - **Limitaciones:** es Python, no C#. El portado a .NET debe repetir las pruebas.
 - **Riesgos:** divergencia entre esta PoC y la implementación en C# (por ejemplo, en el manejo de NaN o de claves duplicadas, que cambia según el parser).
-- **Resultado real:** ver [phase2-results.md §2](phase2-results.md).
+- **Resultado real:** ver [poc/command-validator/README.md](../poc/command-validator/README.md).
 
 ## PoC 2 — Recepción local de mensajes de prueba en Windows
 
@@ -38,14 +38,14 @@ Cada PoC es pequeña e independiente. Las hipótesis **no** son decisiones. El e
 - **Criterio de aceptación:** todas las pruebas pasan; el puerto queda libre después de `stop()`; no quedan procesos.
 - **Limitaciones:** el RTT en loopback **no** mide ningún enlace inalámbrico. No hay C# porque falta el .NET SDK.
 - **Riesgos:** confundir el RTT en loopback con la latencia de RNF-01. Se mitiga con advertencias explícitas.
-- **Resultado real:** ver [phase2-results.md §2](phase2-results.md).
+- **Resultado real:** ver [poc/local-receiver/README.md](../poc/local-receiver/README.md).
 
 ## PoC 3 — Evaluación preliminar de Bluetooth frente a Wi-Fi local
 
 - **Objetivo:** decidir qué transporte probar primero y qué medir.
 - **Hipótesis:** Wi-Fi local (TCP) es el primer candidato por su facilidad de prueba con el emulador. BLE GATT es el candidato para el reloj físico sin red común. Ninguna se confirma sin hardware.
 - **Recursos:** documentación pública. Para medir: un reloj Wear OS físico, el adaptador Bluetooth del PC y una red local controlada.
-- **Procedimiento:** (a) análisis documental (hecho, en [phase2-transport-evaluation.md](phase2-transport-evaluation.md)); (b) con emulador: cliente → `10.0.2.2` → receptor de la PoC 2; (c) con reloj físico: medir RTT, pérdidas, reconexión y batería en ambos transportes.
+- **Procedimiento:** (a) análisis documental (hecho, en [communication-protocol.md §1](communication-protocol.md)); (b) con emulador: cliente → `10.0.2.2` → receptor de la PoC 2; (c) con reloj físico: medir RTT, pérdidas, reconexión y batería en ambos transportes.
 - **Datos que se medirán:** RTT de extremo a extremo (n ≥ 200 por condición), tasa de pérdida, tiempo de reconexión tras cortar el enlace, consumo de batería por hora con el enlace activo e inactivo.
 - **Criterio de aceptación:** p95 del transporte de comando suficientemente bajo para que el total cumpla RNF-01 (≤ 1 s en el 95 % de los casos, sumando la captura y la inferencia); reconexión sin reiniciar (RF-17).
 - **Limitaciones:** no hay reloj; el emulador no pone el adaptador Bluetooth del PC a disposición de la aplicación.
