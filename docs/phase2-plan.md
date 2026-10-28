@@ -10,7 +10,7 @@ Cada PoC es pequeña e independiente. Las hipótesis **no** son decisiones. El r
 | 1. Validación de comandos y lista blanca | ADR-04, RF-15, RNF-04, RNF-06 | **Ejecutada (aprobada)** |
 | 2. Recepción local en Windows | ADR-04, RF-06, RNF-14 | **Ejecutada (aprobada, solo loopback)** |
 | 3. Bluetooth frente a Wi-Fi local | ADR-02 | Análisis documental; **bloqueada para medición física** |
-| 4. Emulador de Wear OS y sensores | ADR-01, ADR-03 | **Bloqueada**: faltan la imagen y el AVD |
+| 4. Emulador de Wear OS y sensores | ADR-01, ADR-03 | **Ejecutada (aprobada, con limitaciones)** |
 | 5. Dónde ejecutar el reconocimiento | ADR-01 | Análisis documental; falta evidencia medida |
 | 6. Reconocimiento inicial con datos de sensores | ADR-03, RNF-02, RNF-03 | **No ejecutada**: no hay datos legítimos |
 
@@ -55,12 +55,13 @@ Cada PoC es pequeña e independiente. Las hipótesis **no** son decisiones. El r
 
 - **Objetivo:** confirmar que se puede iniciar un AVD de Wear OS y qué sensores simulados expone.
 - **Hipótesis:** el emulador expone un acelerómetro y un giroscopio virtuales que se pueden manipular desde *Extended controls → Virtual sensors* o con la consola (`adb emu sensor ...`).
-- **Recursos:** una imagen de sistema Wear OS y un AVD (🔒 **faltan**). La aceleración WHPX ya funciona.
+- **Recursos:** imagen Wear OS 6.0 (API 36, x86_64) y AVD `Wear_OS_Large_Round_API_36`, instalados el 2026-10-25 con autorización. Aceleración WHPX.
 - **Procedimiento:** tras autorizar la descarga, crear el AVD, iniciarlo, ejecutar `adb shell dumpsys sensorservice` y `adb emu sensor status`, y modificar los valores para observar su lectura.
 - **Datos medidos:** lista de sensores, frecuencias declaradas, posibilidad de inyectar valores.
 - **Criterio de aceptación:** el AVD arranca y aparecen el acelerómetro y el giroscopio.
 - **Limitaciones:** los datos simulados **no** son movimientos reales de muñeca. Sirven para probar el flujo, no la precisión.
 - **Riesgos:** confundir la inyección manual de valores con datos de entrenamiento.
+- **Resultado real:** el AVD arranca y expone acelerómetro y giroscopio (Goldfish), entregados a ~50 Hz con `SENSOR_DELAY_GAME`. Los valores se pueden inyectar con `adb emu sensor set gyroscope x:y:z`, pero el sensor **solo cambia aproximadamente una vez por segundo**, así que no se puede imitar un giro rápido de muñeca. Por eso los giros rápidos se prueban reproduciendo series sintéticas por el reconocedor (solo en depuración; ver [watch-app/README.md](../watch-app/README.md)). Estos datos no sirven para entrenar ni para medir la precisión.
 
 ## PoC 5 — Dónde ejecutar el reconocimiento
 
