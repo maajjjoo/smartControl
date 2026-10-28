@@ -50,13 +50,50 @@ def build(count: int = 40) -> dict:
     }
 
 
+MODEL_FIXTURE = FIXTURE.parent / "model-parity" / "model.json"
+EXPECTED_FIXTURE = FIXTURE.parent / "model-parity" / "expected.json"
+
+
+def build_model_fixture(feature_fixture: dict) -> tuple[dict, dict]:
+    """MLP SINTÉTICO pequeño y sus probabilidades esperadas sobre las ventanas de paridad.
+
+    Las etiquetas son inventadas (signo de la integral de X); solo sirve para comprobar que C#
+    carga el modelo exportado y obtiene las mismas probabilidades.
+    """
+    from smartcontrol_training import export, model
+
+    x = np.array([case["features"] for case in feature_fixture["cases"]])
+    integral = x[:, features.NAMES.index("gyro_x_integral")]
+    labels = np.where(integral > 0.05, 0, np.where(integral < -0.05, 1, 2))
+    trained = model.train_mlp(x, labels, hidden=4, epochs=300, seed=SEED)
+    model_json = export.to_json(trained, "synthetic", participants=0, windows=len(x),
+                                dataset_sha256=None, model_version="parity-fixture-1")
+    probabilities = model.predict_proba(trained, x)
+    expected = {
+        "purpose": "Paridad de inferencia entre Python y C# con un modelo sintético",
+        "dataSource": "synthetic",
+        "classes": list(model.CLASSES),
+        "probabilities": probabilities.tolist(),
+    }
+    return model_json, expected
+
+
 def main() -> None:
+    from smartcontrol_training import export
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--write", type=Path, default=FIXTURE, help="ruta del fixture que se escribe")
     args = parser.parse_args()
     args.write.parent.mkdir(parents=True, exist_ok=True)
-    args.write.write_text(json.dumps(build(), indent=1) + "\n", encoding="utf-8")
+    feature_fixture = build()
+    # write_bytes para escribir LF en cualquier sistema (el fixture se compara byte a byte en Git).
+    args.write.write_bytes((json.dumps(feature_fixture, indent=1) + "\n").encode("utf-8"))
     print(f"escrito {args.write}")
+
+    model_json, expected = build_model_fixture(feature_fixture)
+    export.write_model(MODEL_FIXTURE, model_json)
+    EXPECTED_FIXTURE.write_bytes((json.dumps(expected, indent=1) + "\n").encode("utf-8"))
+    print(f"escrito {MODEL_FIXTURE} y {EXPECTED_FIXTURE}")
 
 
 if __name__ == "__main__":

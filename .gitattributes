@@ -1,0 +1,2 @@
+# Fixtures de entrenamiento: bytes exactos (el modelo lleva su resumen SHA-256; convertir los finales de línea lo invalidaría).
+ai-module/training/fixtures/** -text

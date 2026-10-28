@@ -68,6 +68,7 @@ internal static class TestRunner
         tests.AddRange(GestureModelTests.All());
         tests.AddRange(GestureModelLoaderTests.All());
         tests.AddRange(DenseClassifierTests.All());
+        tests.AddRange(ModelParityTests.All());
         tests.AddRange(GestureDecisionTests.All());
         tests.AddRange(ContextualActionSelectorTests.All());
         tests.AddRange(RecognitionPipelineTests.All());
