@@ -24,12 +24,30 @@ enum class WristGesture(val id: String) {
     TWIST_IN("WRIST_TWIST_IN"),
 }
 
+/**
+ * Resultado de un movimiento. [startNanos] y [endNanos] son las marcas de tiempo del sensor en las
+ * que empezó y terminó el tramo (0 si el evento no procede del detector); el grabador de
+ * depuración las usa para recortar la ventana que se guarda.
+ */
 sealed interface GestureEvent {
+    val startNanos: Long
+    val endNanos: Long
+
     /** Movimiento claro de un único gesto, con confianza en [0, 1]. */
-    data class Recognized(val gesture: WristGesture, val confidence: Float) : GestureEvent
+    data class Recognized(
+        val gesture: WristGesture,
+        val confidence: Float,
+        override val startNanos: Long = 0,
+        override val endNanos: Long = 0,
+    ) : GestureEvent
 
     /** Hubo un movimiento con intención aparente, pero no cumple las reglas: no se actúa. */
-    data class Unclear(val confidence: Float, val reason: UnclearReason) : GestureEvent
+    data class Unclear(
+        val confidence: Float,
+        val reason: UnclearReason,
+        override val startNanos: Long = 0,
+        override val endNanos: Long = 0,
+    ) : GestureEvent
 }
 
 enum class UnclearReason { WEAK, AMBIGUOUS_AXIS, BACK_AND_FORTH, TOO_SLOW }
@@ -166,14 +184,17 @@ class WristGestureDetector(private val config: Config = Config()) {
         val strength = (abs(peak) / config.strongPeak).coerceAtMost(1f)
         val dominance = abs(peak) / sqrt(peak * peak + maxOther * maxOther)
         val confidence = strength * dominance
+        val start = startNanos
         return when {
-            tooSlow -> GestureEvent.Unclear(confidence, UnclearReason.TOO_SLOW)
-            reversed -> GestureEvent.Unclear(confidence, UnclearReason.BACK_AND_FORTH)
-            dominance < config.minDominance -> GestureEvent.Unclear(confidence, UnclearReason.AMBIGUOUS_AXIS)
-            confidence < MIN_GESTURE_CONFIDENCE -> GestureEvent.Unclear(confidence, UnclearReason.WEAK)
+            tooSlow -> GestureEvent.Unclear(confidence, UnclearReason.TOO_SLOW, start, timestampNanos)
+            reversed -> GestureEvent.Unclear(confidence, UnclearReason.BACK_AND_FORTH, start, timestampNanos)
+            dominance < config.minDominance -> GestureEvent.Unclear(confidence, UnclearReason.AMBIGUOUS_AXIS, start, timestampNanos)
+            confidence < MIN_GESTURE_CONFIDENCE -> GestureEvent.Unclear(confidence, UnclearReason.WEAK, start, timestampNanos)
             else -> GestureEvent.Recognized(
                 gesture = if (peak > 0) WristGesture.TWIST_OUT else WristGesture.TWIST_IN,
                 confidence = confidence,
+                startNanos = start,
+                endNanos = timestampNanos,
             )
         }
     }

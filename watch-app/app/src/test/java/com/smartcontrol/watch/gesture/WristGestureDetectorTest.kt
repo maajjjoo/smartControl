@@ -42,6 +42,20 @@ class WristGestureDetectorTest {
     }
 
     @Test
+    fun eventsCarryTheSegmentBounds() {
+        // twist(): 3 en reposo, 3.3 (empieza), 5.5 × 4, 1.65 y 0 (termina). Muestra i en 1 s + (i + 1) · 20 ms.
+        val feeder = Feeder()
+        val start = feeder.nowNanos + 4 * step
+        val end = feeder.nowNanos + 10 * step
+        val event = feeder.feed(twist(5.5f)).single()
+        assertEquals(start, event.startNanos)
+        assertEquals(end, event.endNanos)
+
+        val weak = Feeder().feed(twist(3.0f)).single() as GestureEvent.Unclear
+        assertTrue(weak.endNanos > weak.startNanos)
+    }
+
+    @Test
     fun smallMovementsProduceNothing() {
         val calm = List(50) { i -> SyntheticGestures.Sample(if (i % 2 == 0) 1.2f else -1.0f, 0.5f, 0.3f) }
         assertTrue(Feeder().feed(calm).isEmpty())
