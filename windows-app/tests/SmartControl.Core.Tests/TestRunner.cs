@@ -63,6 +63,7 @@ internal static class TestRunner
         tests.AddRange(ReceiverTests.All());
         tests.AddRange(EventLogTests.All());
         tests.AddRange(SensorWindowTests.All());
+        tests.AddRange(MovementFeaturesTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();
