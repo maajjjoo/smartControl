@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Forms.Automation;
 using SmartControl.Core.Logging;
 using SmartControl.Core.Protocol;
 using SmartControl.Core.Transport;
@@ -34,6 +35,7 @@ internal sealed class MainForm : Form
     private readonly SmartButton _secondAction = new();
     private readonly Label _lastResponseLabel = new();
     private readonly Label _technicalLabel = new();
+    private readonly StatusAnnouncement _statusAnnouncement = new();
 
     private ControlMode _testMode = ControlMode.Presentation;
     private byte[]? _lastSentMessage;
@@ -418,6 +420,7 @@ internal sealed class MainForm : Form
     {
         _lastResponseLabel.Text = text;
         _lastResponseLabel.ForeColor = color;
+        Announcer.Announce(this, text, AutomationNotificationKind.ActionCompleted);
     }
 
     private void AddActivity(CommandProcessedEventArgs e)
@@ -459,6 +462,16 @@ internal sealed class MainForm : Form
                 break;
         }
         _startStopButton.Invalidate();
+        AnnounceStatus();
+    }
+
+    /// <summary>Lee el estado nuevo a quien use un lector de pantalla, sin repetirlo si no cambió.</summary>
+    private void AnnounceStatus()
+    {
+        if (!IsHandleCreated)
+            return;
+        if (_statusAnnouncement.Next(_stateTitle.Text, _stateDetail.Text) is { } text)
+            Announcer.Announce(this, text, AutomationNotificationKind.Other);
     }
 
     private async Task ToggleReceiverAsync()

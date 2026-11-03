@@ -35,9 +35,7 @@ internal sealed record ActivityEntry(DateTimeOffset Time, bool Accepted, string 
     /// carácter del icono. El separador «·» pasa a ser una coma para que se lea como una pausa.
     /// </summary>
     public override string ToString() =>
-        $"{(Accepted ? "Hecho" : "Bloqueado")}: {Sentence(Title)} {Sentence(Detail.Replace(" · ", ", "))} A las {TimeText}.";
-
-    private static string Sentence(string text) => text.EndsWith('.') ? text : text + ".";
+        $"{(Accepted ? "Hecho" : "Bloqueado")}: {Announcer.Sentence(Title)} {Announcer.Sentence(Detail.Replace(" · ", ", "))} A las {TimeText}.";
 }
 
 /// <summary>Textos para el usuario. Los códigos técnicos solo aparecen como ayuda emergente y en el registro.</summary>
