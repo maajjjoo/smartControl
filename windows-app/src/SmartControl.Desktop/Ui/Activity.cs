@@ -126,7 +126,7 @@ internal sealed class ActivityList : ListBox
         DrawMode = DrawMode.OwnerDrawFixed;
         BorderStyle = BorderStyle.None;
         IntegralHeight = false;
-        BackColor = Palette.Surface;
+        this.WithColors(back: () => Palette.Surface);
         Font = Typography.Body;
         SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
         AccessibleName = "Actividad";
@@ -168,6 +168,10 @@ internal sealed class ActivityList : ListBox
         var g = e.Graphics;
         var bounds = e.Bounds;
         var selected = (e.State & DrawItemState.Selected) != 0;
+        // Con contraste alto, la fila seleccionada usa el resaltado del sistema y su texto.
+        var highlighted = selected && Palette.HighContrast;
+        var titleColor = highlighted ? SystemColors.HighlightText : Palette.Text;
+        var mutedColor = highlighted ? SystemColors.HighlightText : Palette.TextMuted;
         using (var bg = new SolidBrush(selected ? Palette.AccentSoft : Palette.Surface))
             g.FillRectangle(bg, bounds);
         if (e.Index < Items.Count - 1)
@@ -183,6 +187,12 @@ internal sealed class ActivityList : ListBox
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using (var badgeBrush = new SolidBrush(entry.Accepted ? Palette.SuccessSoft : Palette.DangerSoft))
             g.FillEllipse(badgeBrush, badgeRect);
+        if (Palette.HighContrast)
+        {
+            // El fondo del círculo no se distingue con contraste alto: se dibuja su contorno.
+            using var badgeBorder = new Pen(Palette.Text);
+            g.DrawEllipse(badgeBorder, badgeRect);
+        }
         using (var iconFont = Icons.Create(11f))
         {
             TextRenderer.DrawText(g, entry.Glyph, iconFont, badgeRect, entry.Accepted ? Palette.SuccessOnSoft : Palette.DangerOnSoft,
@@ -197,9 +207,9 @@ internal sealed class ActivityList : ListBox
         var textWidth = Math.Max(0, bounds.Right - pad - timeWidth - LogicalToDeviceUnits(12) - textLeft);
         var mid = bounds.Top + bounds.Height / 2;
 
-        TextRenderer.DrawText(g, entry.Title, Typography.Label, new Rectangle(textLeft, bounds.Top, textWidth, mid - bounds.Top + 1), Palette.Text, line1);
-        TextRenderer.DrawText(g, entry.Detail, Typography.Small, new Rectangle(textLeft, mid + LogicalToDeviceUnits(2), textWidth, bounds.Bottom - mid), Palette.TextMuted, line2);
-        TextRenderer.DrawText(g, time, Typography.Small, new Rectangle(bounds.Right - pad - timeWidth, bounds.Top, timeWidth, bounds.Height), Palette.TextMuted,
+        TextRenderer.DrawText(g, entry.Title, Typography.Label, new Rectangle(textLeft, bounds.Top, textWidth, mid - bounds.Top + 1), titleColor, line1);
+        TextRenderer.DrawText(g, entry.Detail, Typography.Small, new Rectangle(textLeft, mid + LogicalToDeviceUnits(2), textWidth, bounds.Bottom - mid), mutedColor, line2);
+        TextRenderer.DrawText(g, time, Typography.Small, new Rectangle(bounds.Right - pad - timeWidth, bounds.Top, timeWidth, bounds.Height), mutedColor,
             TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter);
 
         if ((e.State & DrawItemState.Focus) != 0 && (e.State & DrawItemState.NoFocusRect) == 0)

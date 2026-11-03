@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Automation;
+using Microsoft.Win32;
 using SmartControl.Core.Logging;
 using SmartControl.Core.Protocol;
 using SmartControl.Core.Transport;
@@ -54,8 +55,7 @@ internal sealed class MainForm : Form
         MinimumSize = new Size(LogicalToDeviceUnits(960), LogicalToDeviceUnits(640));
         Size = new Size(LogicalToDeviceUnits(1180), LogicalToDeviceUnits(780));
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Palette.Background;
-        ForeColor = Palette.Text;
+        this.WithColors(fore: () => Palette.Text, back: () => Palette.Background);
 
         BuildLayout();
         SelectTestMode(ControlMode.Presentation);
@@ -64,7 +64,41 @@ internal sealed class MainForm : Form
         _receiver.CommandProcessed += (_, e) => RunOnUi(() => AddActivity(e));
         Load += (_, _) => StartReceiver();
         FormClosing += OnFormClosing;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         UpdateStatus();
+    }
+
+    /// <summary>Windows cambió los colores del sistema (por ejemplo, otro tema de contraste).</summary>
+    protected override void OnSystemColorsChanged(EventArgs e)
+    {
+        base.OnSystemColorsChanged(e);
+        Palette.Refresh();
+        ApplyTheme();
+    }
+
+    /// <summary>Activar o desactivar el contraste alto llega como un cambio de accesibilidad.</summary>
+    private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category == UserPreferenceCategory.Accessibility)
+            RunOnUi(() =>
+            {
+                Palette.Refresh();
+                ApplyTheme();
+            });
+    }
+
+    /// <summary>Vuelve a aplicar los colores de <see cref="Palette"/> a toda la ventana y la repinta.</summary>
+    internal void ApplyTheme()
+    {
+        ThemeColors.Reapply(this);
+        UpdateStatus();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        base.Dispose(disposing);
     }
 
     private void BuildLayout()
@@ -75,8 +109,7 @@ internal sealed class MainForm : Form
             ColumnCount = 2,
             RowCount = 4,
             Padding = new Padding(24, 20, 24, 12),
-            BackColor = Palette.Background,
-        };
+        }.WithColors(back: () => Palette.Background);
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(360)));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -96,7 +129,7 @@ internal sealed class MainForm : Form
         _technicalLabel.Dock = DockStyle.Fill;
         _technicalLabel.AutoEllipsis = true;
         _technicalLabel.Font = Typography.Small;
-        _technicalLabel.ForeColor = Palette.TextMuted;
+        _technicalLabel.WithColors(fore: () => Palette.TextMuted);
         _technicalLabel.Margin = new Padding(2, 10, 2, 0);
         _technicalLabel.Height = LogicalToDeviceUnits(22);
         root.Controls.Add(_technicalLabel, 0, 3);
@@ -123,10 +156,9 @@ internal sealed class MainForm : Form
             Text = "SmartControl",
             AutoSize = true,
             Font = Typography.Title,
-            ForeColor = Palette.Text,
             Margin = new Padding(0),
-        }, 0, 0);
-        header.Controls.Add(new Pill("Modo de prueba · las acciones se simulan", Palette.WarningSoft, Palette.WarningOnSoft)
+        }.WithColors(fore: () => Palette.Text), 0, 0);
+        header.Controls.Add(new Pill("Modo de prueba · las acciones se simulan", () => Palette.WarningSoft, () => Palette.WarningOnSoft)
         {
             Anchor = AnchorStyles.Left,
             Margin = new Padding(12, 4, 0, 0),
@@ -135,9 +167,8 @@ internal sealed class MainForm : Form
         {
             Text = "Controla tus presentaciones y tu música con gestos del reloj. Por ahora ninguna aplicación se controla de verdad.",
             AutoSize = true,
-            ForeColor = Palette.TextMuted,
             Margin = new Padding(2, 2, 0, 0),
-        };
+        }.WithColors(fore: () => Palette.TextMuted);
         header.Controls.Add(subtitle, 0, 1);
         header.SetColumnSpan(subtitle, 2);
         return header;
@@ -158,8 +189,7 @@ internal sealed class MainForm : Form
             AutoSize = true,
             ColumnCount = 3,
             RowCount = 2,
-            BackColor = Palette.Surface,
-        };
+        }.WithColors(back: () => Palette.Surface);
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -172,11 +202,11 @@ internal sealed class MainForm : Form
 
         _stateTitle.AutoSize = true;
         _stateTitle.Font = Typography.StatusTitle;
-        _stateTitle.ForeColor = Palette.Text;
+        _stateTitle.WithColors(fore: () => Palette.Text);
         _stateTitle.Margin = new Padding(0);
 
         _stateDetail.AutoSize = true;
-        _stateDetail.ForeColor = Palette.TextMuted;
+        _stateDetail.WithColors(fore: () => Palette.TextMuted);
         _stateDetail.Margin = new Padding(1, 2, 0, 0);
 
         _startStopButton.Name = "receiverToggle";
@@ -205,13 +235,12 @@ internal sealed class MainForm : Form
             AutoSize = true,
             ColumnCount = 2,
             Padding = new Padding(19, 14, 12, 8),
-            BackColor = Palette.Surface,
-        };
+        }.WithColors(back: () => Palette.Surface);
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        var title = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Margin = new Padding(0), BackColor = Palette.Surface };
-        title.Controls.Add(new Label { Text = "Actividad", AutoSize = true, Font = Typography.Section, ForeColor = Palette.Text, Margin = new Padding(0) });
-        title.Controls.Add(new Label { Text = "Lo más reciente arriba. Verde: se realizó. Rojo: se bloqueó y no se hizo nada.", AutoSize = true, ForeColor = Palette.TextMuted, Margin = new Padding(0, 2, 0, 0) });
+        var title = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Margin = new Padding(0) }.WithColors(back: () => Palette.Surface);
+        title.Controls.Add(new Label { Text = "Actividad", AutoSize = true, Font = Typography.Section, Margin = new Padding(0) }.WithColors(fore: () => Palette.Text));
+        title.Controls.Add(new Label { Text = "Lo más reciente arriba. Verde: se realizó. Rojo: se bloqueó y no se hizo nada.", AutoSize = true, Margin = new Padding(0, 2, 0, 0) }.WithColors(fore: () => Palette.TextMuted));
         header.Controls.Add(title, 0, 0);
 
         var clear = new SmartButton
@@ -250,14 +279,13 @@ internal sealed class MainForm : Form
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
-            BackColor = Palette.Surface,
             Padding = new Padding(0, 0, 8, 0),
-        };
+        }.WithColors(back: () => Palette.Surface);
 
-        flow.Controls.Add(new Label { Text = "Probar sin el reloj", AutoSize = true, Font = Typography.Section, ForeColor = Palette.Text, Margin = new Padding(0) });
+        flow.Controls.Add(new Label { Text = "Probar sin el reloj", AutoSize = true, Font = Typography.Section, Margin = new Padding(0) }.WithColors(fore: () => Palette.Text));
         flow.Controls.Add(MutedText("Envía un comando desde este equipo. No es un gesto del reloj.", new Padding(0, 2, 0, 14)));
 
-        flow.Controls.Add(new Label { Text = "Modo", AutoSize = true, Font = Typography.Label, ForeColor = Palette.Text, Margin = new Padding(0, 0, 0, 6) });
+        flow.Controls.Add(new Label { Text = "Modo", AutoSize = true, Font = Typography.Label, Margin = new Padding(0, 0, 0, 6) }.WithColors(fore: () => Palette.Text));
         _presentationMode.Text = Texts.ModeName(ControlMode.Presentation);
         _multimediaMode.Text = Texts.ModeName(ControlMode.Multimedia);
         _presentationMode.Click += (_, _) => SelectTestMode(ControlMode.Presentation);
@@ -276,9 +304,9 @@ internal sealed class MainForm : Form
         _secondAction.Click += async (_, _) => await SendTestCommandAsync(CommandAllowlist.ActionsFor(_testMode)[ActionOrder(1)]);
         flow.Controls.Add(TwoColumns(_firstAction, _secondAction, 46, new Padding(0)));
 
-        flow.Controls.Add(new Panel { Height = 1, BackColor = Palette.Outline, Margin = new Padding(0, 16, 0, 14) });
+        flow.Controls.Add(new Panel { Height = 1, Margin = new Padding(0, 16, 0, 14) }.WithColors(back: () => Palette.Outline));
 
-        flow.Controls.Add(new Label { Text = "Comprobar la seguridad", AutoSize = true, Font = Typography.Label, ForeColor = Palette.Text, Margin = new Padding(0) });
+        flow.Controls.Add(new Label { Text = "Comprobar la seguridad", AutoSize = true, Font = Typography.Label, Margin = new Padding(0) }.WithColors(fore: () => Palette.Text));
         flow.Controls.Add(MutedText("Deben bloquearse y aparecer en rojo en la actividad.", new Padding(0, 2, 0, 8)));
 
         flow.Controls.Add(CheckButton("Orden no permitida", () => SendRawRequestAsync("cmd.exe /c calc")));
@@ -293,7 +321,7 @@ internal sealed class MainForm : Form
         {
             if (_lastSentMessage is not null)
                 return SendRawAsync(_lastSentMessage);
-            ShowLastResponse("Primero envía un comando para poder repetirlo.", Palette.TextMuted);
+            ShowLastResponse("Primero envía un comando para poder repetirlo.", () => Palette.TextMuted);
             return Task.CompletedTask;
         }));
 
@@ -318,13 +346,12 @@ internal sealed class MainForm : Form
         return card;
     }
 
-    private static Label MutedText(string text, Padding margin) => new()
+    private static Label MutedText(string text, Padding margin) => new Label
     {
         Text = text,
         AutoSize = true,
-        ForeColor = Palette.TextMuted,
         Margin = margin,
-    };
+    }.WithColors(fore: () => Palette.TextMuted);
 
     private TableLayoutPanel TwoColumns(Control left, Control right, int height, Padding margin)
     {
@@ -334,8 +361,7 @@ internal sealed class MainForm : Form
             RowCount = 1,
             Height = LogicalToDeviceUnits(height),
             Margin = margin,
-            BackColor = Palette.Surface,
-        };
+        }.WithColors(back: () => Palette.Surface);
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -403,7 +429,7 @@ internal sealed class MainForm : Form
     {
         if (_receiver.State != ReceiverState.Running)
         {
-            ShowLastResponse("SmartControl está en pausa. Reanúdalo para enviar pruebas.", Palette.DangerOnSoft);
+            ShowLastResponse("SmartControl está en pausa. Reanúdalo para enviar pruebas.", () => Palette.DangerOnSoft);
             return;
         }
         try
@@ -412,14 +438,14 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex) when (ex is SocketException or System.IO.IOException or OperationCanceledException)
         {
-            ShowLastResponse("No se pudo entregar el mensaje. Comprueba que SmartControl esté activo y vuelve a intentarlo.", Palette.DangerOnSoft);
+            ShowLastResponse("No se pudo entregar el mensaje. Comprueba que SmartControl esté activo y vuelve a intentarlo.", () => Palette.DangerOnSoft);
         }
     }
 
-    private void ShowLastResponse(string text, Color color)
+    private void ShowLastResponse(string text, Func<Color> color)
     {
         _lastResponseLabel.Text = text;
-        _lastResponseLabel.ForeColor = color;
+        _lastResponseLabel.WithColors(fore: color);
         Announcer.Announce(this, text, AutomationNotificationKind.ActionCompleted);
     }
 
@@ -429,7 +455,7 @@ internal sealed class MainForm : Form
         _activity.Add(entry);
         ShowLastResponse(
             entry.Accepted ? $"Hecho: {entry.Title} (simulado)." : $"Bloqueado: {entry.Title.ToLowerInvariant()}.",
-            entry.Accepted ? Palette.SuccessOnSoft : Palette.DangerOnSoft);
+            entry.Accepted ? () => Palette.SuccessOnSoft : () => Palette.DangerOnSoft);
     }
 
     private void UpdateStatus()

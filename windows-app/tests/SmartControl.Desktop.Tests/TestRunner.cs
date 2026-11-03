@@ -36,6 +36,7 @@ internal static class TestRunner
         var tests = new List<(string Name, Action Body)>();
         tests.AddRange(ActivityAccessibilityTests.All());
         tests.AddRange(AnnouncementTests.All());
+        tests.AddRange(HighContrastTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();

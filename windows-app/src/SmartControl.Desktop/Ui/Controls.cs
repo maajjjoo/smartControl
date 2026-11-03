@@ -11,10 +11,8 @@ internal sealed class Card : Panel
     public Card()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
-        BackColor = Palette.Surface;
+        this.WithColors(back: () => Palette.Surface);
     }
-
-    public Color FillColor { get; set; } = Palette.Surface;
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
@@ -22,7 +20,7 @@ internal sealed class Card : Panel
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         using var path = Shapes.RoundedRect(rect, LogicalToDeviceUnits(8));
-        using var fill = new SolidBrush(FillColor);
+        using var fill = new SolidBrush(Palette.Surface);
         using var border = new Pen(Palette.Outline);
         e.Graphics.FillPath(fill, path);
         e.Graphics.DrawPath(border, path);
@@ -133,15 +131,18 @@ internal sealed class SmartButton : Button
             var inset = 1.5f;
             var ring = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
             using var path = Shapes.RoundedRect(ring, radius - 1);
-            using var pen = new Pen(Kind == ButtonKind.Primary ? Color.White : Palette.Accent, 2f);
+            var ringColor = Palette.HighContrast ? fore : Kind == ButtonKind.Primary ? Color.White : Palette.Accent;
+            using var pen = new Pen(ringColor, 2f);
             g.DrawPath(pen, path);
         }
 
         DrawContent(g, fore);
     }
 
-    private (Color Fill, Color Border, Color Fore) Colors()
+    internal (Color Fill, Color Border, Color Fore) Colors()
     {
+        if (Palette.HighContrast)
+            return HighContrastColors();
         if (!Enabled)
             return (Kind == ButtonKind.Subtle ? Color.Empty : Palette.IdleSoft, Color.Empty, Palette.Idle);
         if (_selected)
@@ -153,6 +154,19 @@ internal sealed class SmartButton : Button
             _ => (_pressed ? Palette.SurfacePressed : _hover ? Palette.SurfaceHover : Palette.Surface,
                   _hover ? Palette.OutlineStrong : Palette.Outline, Palette.Text),
         };
+    }
+
+    /// <summary>
+    /// Contraste alto: los colores de botón del sistema, siempre con borde para que se vea dónde
+    /// empieza el botón. Ratón encima, pulsado y seleccionado usan el resaltado del sistema.
+    /// </summary>
+    private (Color Fill, Color Border, Color Fore) HighContrastColors()
+    {
+        if (!Enabled)
+            return (SystemColors.Window, SystemColors.GrayText, SystemColors.GrayText);
+        if (_selected || _hover || _pressed)
+            return (SystemColors.Highlight, SystemColors.Highlight, SystemColors.HighlightText);
+        return (SystemColors.ButtonFace, SystemColors.ControlText, SystemColors.ControlText);
     }
 
     private void DrawContent(Graphics g, Color fore)
@@ -207,18 +221,20 @@ internal sealed class StatusDot : Control
 /// <summary>Pastilla de texto para avisos breves, como el modo de prueba.</summary>
 internal sealed class Pill : Label
 {
-    public Pill(string text, Color fill, Color fore)
+    private readonly Func<Color> _fill;
+
+    public Pill(string text, Func<Color> fill, Func<Color> fore)
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
         Text = text;
         Font = Typography.Small;
-        ForeColor = fore;
-        Fill = fill;
+        this.WithColors(fore: fore);
+        _fill = fill;
         AutoSize = true;
         Padding = new Padding(10, 4, 10, 4);
     }
 
-    public Color Fill { get; }
+    public Color Fill => _fill();
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -228,6 +244,12 @@ internal sealed class Pill : Label
         using var path = Shapes.RoundedRect(rect, Height / 2f);
         using var brush = new SolidBrush(Fill);
         e.Graphics.FillPath(brush, path);
+        if (Palette.HighContrast)
+        {
+            // Sin el color de fondo, el borde es lo que la distingue del texto normal.
+            using var border = new Pen(ForeColor);
+            e.Graphics.DrawPath(border, path);
+        }
         TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, ForeColor,
             TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
     }
