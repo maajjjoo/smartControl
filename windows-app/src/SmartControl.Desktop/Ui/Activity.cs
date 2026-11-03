@@ -25,6 +25,19 @@ internal sealed record ActivityEntry(DateTimeOffset Time, bool Accepted, string 
         var (title, detail) = Texts.Rejection(result);
         return new ActivityEntry(e.ReceivedAt, false, Icons.Blocked, title, detail, result.ReasonCode);
     }
+
+    /// <summary>Hora local con la que se muestra la fila.</summary>
+    public string TimeText => Time.ToLocalTime().ToString("HH:mm:ss");
+
+    /// <summary>
+    /// Lo que leen los lectores de pantalla: la lista usa este texto como nombre de cada fila.
+    /// Dice el resultado (que en pantalla es un color), qué pasó, por qué y la hora, sin el
+    /// carácter del icono. El separador «·» pasa a ser una coma para que se lea como una pausa.
+    /// </summary>
+    public override string ToString() =>
+        $"{(Accepted ? "Hecho" : "Bloqueado")}: {Sentence(Title)} {Sentence(Detail.Replace(" · ", ", "))} A las {TimeText}.";
+
+    private static string Sentence(string text) => text.EndsWith('.') ? text : text + ".";
 }
 
 /// <summary>Textos para el usuario. Los códigos técnicos solo aparecen como ayuda emergente y en el registro.</summary>
@@ -180,7 +193,7 @@ internal sealed class ActivityList : ListBox
 
         const TextFormatFlags line1 = TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.Bottom;
         const TextFormatFlags line2 = TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.Top;
-        var time = entry.Time.ToLocalTime().ToString("HH:mm:ss");
+        var time = entry.TimeText;
         var timeWidth = TextRenderer.MeasureText(g, time, Typography.Small).Width;
         var textLeft = badgeRect.Right + LogicalToDeviceUnits(14);
         var textWidth = Math.Max(0, bounds.Right - pad - timeWidth - LogicalToDeviceUnits(12) - textLeft);

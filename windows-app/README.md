@@ -17,6 +17,7 @@ Aplicación de escritorio **WinForms sobre .NET 8**. Las acciones **se simulan**
 | `src/SmartControl.Core` | Lista blanca (`CommandAllowlist`), validador (`CommandValidator`), receptor TCP solo en `127.0.0.1` (`LocalCommandReceiver`), ejecutor simulado, registro de eventos y reconocimiento local (`Recognition/`). No depende de la interfaz. |
 | `src/SmartControl.Desktop` | Ventana: estado del receptor, comandos recibidos con su resultado y panel de comandos de prueba. |
 | `tests/SmartControl.Core.Tests` | Pruebas del validador, del receptor (con clientes reales en loopback), del registro y del reconocimiento local. Sin paquetes NuGet. |
+| `tests/SmartControl.Desktop.Tests` | Pruebas de la ventana sin mostrarla: texto que leen los lectores de pantalla. Sin paquetes NuGet. |
 
 Comportamiento:
 - El receptor escucha en `127.0.0.1:47800` y recibe JSON delimitado por salto de línea (máx. 4096 bytes), con las reglas de [communication-protocol.md §4](../docs/communication-protocol.md).
@@ -46,6 +47,7 @@ Con el **.NET 8 SDK** instalado (forma oficial):
 
 ```powershell
 dotnet run --project windows-app/tests/SmartControl.Core.Tests
+dotnet run --project windows-app/tests/SmartControl.Desktop.Tests
 dotnet run --project windows-app/src/SmartControl.Desktop
 ```
 

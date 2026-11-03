@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pruebas de la ventana, sin paquetes NuGet: dotnet run --project tests/SmartControl.Desktop.Tests -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SmartControl.Core\SmartControl.Core.csproj" />
+    <ProjectReference Include="..\..\src\SmartControl.Desktop\SmartControl.Desktop.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -82,14 +82,18 @@ $coreDll = Join-Path $out 'SmartControl.Core.dll'
 Invoke-Csc 'SmartControl.Core' 'library' 'src\SmartControl.Core' $coreRefs
 Invoke-Csc 'SmartControl' 'winexe' 'src\SmartControl.Desktop' ($desktopRefs + $coreDll)
 Invoke-Csc 'SmartControl.Core.Tests' 'exe' 'tests\SmartControl.Core.Tests' ($coreRefs + $coreDll)
+Invoke-Csc 'SmartControl.Desktop.Tests' 'exe' 'tests\SmartControl.Desktop.Tests' ($desktopRefs + $coreDll + (Join-Path $out 'SmartControl.dll'))
 
 Write-RuntimeConfig (Join-Path $out 'SmartControl.runtimeconfig.json') @('Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App')
 Write-RuntimeConfig (Join-Path $out 'SmartControl.Core.Tests.runtimeconfig.json') @('Microsoft.NETCore.App')
+Write-RuntimeConfig (Join-Path $out 'SmartControl.Desktop.Tests.runtimeconfig.json') @('Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App')
 Write-Host "Compilación correcta en $out"
 
 if ($Test) {
     & dotnet (Join-Path $out 'SmartControl.Core.Tests.dll')
-    if ($LASTEXITCODE -ne 0) { throw 'Hay pruebas fallidas.' }
+    $coreFailed = $LASTEXITCODE -ne 0
+    & dotnet (Join-Path $out 'SmartControl.Desktop.Tests.dll')
+    if ($coreFailed -or $LASTEXITCODE -ne 0) { throw 'Hay pruebas fallidas.' }
 }
 if ($Run) {
     Start-Process dotnet -ArgumentList "`"$(Join-Path $out 'SmartControl.dll')`""
