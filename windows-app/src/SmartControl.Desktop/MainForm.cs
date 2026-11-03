@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using SmartControl.Core.Logging;
 using SmartControl.Core.Protocol;
 using SmartControl.Core.Transport;
+using SmartControl.Desktop.Ui;
 
 namespace SmartControl.Desktop;
 
@@ -15,49 +16,50 @@ namespace SmartControl.Desktop;
 /// </summary>
 internal sealed class MainForm : Form
 {
-    private const int MaxRows = 200;
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(3);
 
-    private static readonly Color AcceptedColor = Color.FromArgb(0x1B, 0x7F, 0x3B);
-    private static readonly Color RejectedColor = Color.FromArgb(0xB4, 0x23, 0x18);
-    private static readonly Color IdleColor = Color.FromArgb(0x80, 0x80, 0x80);
-    private static readonly Color MutedText = Color.FromArgb(0x5F, 0x63, 0x68);
-
     private readonly LocalCommandReceiver _receiver;
+    private readonly string _logPath;
     private readonly string _testDeviceId;
     private readonly string _testToken;
 
-    private readonly Label _stateDot = new();
-    private readonly Label _stateLabel = new();
-    private readonly Label _connectionLabel = new();
-    private readonly Button _startStopButton = new();
-    private readonly ListView _commandList = new();
-    private readonly ComboBox _modeCombo = new();
+    private readonly StatusDot _stateDot = new();
+    private readonly Label _stateTitle = new();
+    private readonly Label _stateDetail = new();
+    private readonly SmartButton _startStopButton = new();
+    private readonly ActivityList _activity = new();
+    private readonly SmartButton _presentationMode = new();
+    private readonly SmartButton _multimediaMode = new();
+    private readonly SmartButton _firstAction = new();
+    private readonly SmartButton _secondAction = new();
     private readonly Label _lastResponseLabel = new();
-    private readonly ToolStripStatusLabel _logStatus = new();
+    private readonly Label _technicalLabel = new();
 
+    private ControlMode _testMode = ControlMode.Presentation;
     private byte[]? _lastSentMessage;
     private bool _closingAfterStop;
 
     public MainForm(LocalCommandReceiver receiver, FileEventLog log, string testDeviceId, string testToken)
     {
         _receiver = receiver;
+        _logPath = log.CurrentFilePath;
         _testDeviceId = testDeviceId;
         _testToken = testToken;
 
         Text = "SmartControl";
-        Font = new Font("Segoe UI", 9.75f);
+        Font = Typography.Body;
         AutoScaleMode = AutoScaleMode.Dpi;
-        MinimumSize = new Size(LogicalToDeviceUnits(960), LogicalToDeviceUnits(600));
-        Size = new Size(LogicalToDeviceUnits(1180), LogicalToDeviceUnits(720));
+        MinimumSize = new Size(LogicalToDeviceUnits(960), LogicalToDeviceUnits(640));
+        Size = new Size(LogicalToDeviceUnits(1180), LogicalToDeviceUnits(780));
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = SystemColors.Window;
+        BackColor = Palette.Background;
+        ForeColor = Palette.Text;
 
         BuildLayout();
-        _logStatus.Text = "Registro: " + log.CurrentFilePath;
+        SelectTestMode(ControlMode.Presentation);
 
         _receiver.StatusChanged += (_, _) => RunOnUi(UpdateStatus);
-        _receiver.CommandProcessed += (_, e) => RunOnUi(() => AddCommandRow(e));
+        _receiver.CommandProcessed += (_, e) => RunOnUi(() => AddActivity(e));
         Load += (_, _) => StartReceiver();
         FormClosing += OnFormClosing;
         UpdateStatus();
@@ -69,186 +71,240 @@ internal sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 3,
-            Padding = new Padding(16, 12, 16, 8),
+            RowCount = 4,
+            Padding = new Padding(24, 20, 24, 12),
+            BackColor = Palette.Background,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(330)));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(360)));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var header = BuildHeader();
         root.Controls.Add(header, 0, 0);
         root.SetColumnSpan(header, 2);
-        var status = BuildStatusPanel();
+        var status = BuildStatusCard();
         root.Controls.Add(status, 0, 1);
         root.SetColumnSpan(status, 2);
-        root.Controls.Add(BuildCommandList(), 0, 2);
-        root.Controls.Add(BuildTestPanel(), 1, 2);
+        root.Controls.Add(BuildActivityCard(), 0, 2);
+        root.Controls.Add(BuildTestCard(), 1, 2);
 
-        var statusStrip = new StatusStrip { SizingGrip = false };
-        _logStatus.ForeColor = MutedText;
-        _logStatus.Spring = true;
-        _logStatus.TextAlign = ContentAlignment.MiddleLeft;
-        statusStrip.Items.Add(_logStatus);
+        _technicalLabel.Dock = DockStyle.Fill;
+        _technicalLabel.AutoEllipsis = true;
+        _technicalLabel.Font = Typography.Small;
+        _technicalLabel.ForeColor = Palette.TextMuted;
+        _technicalLabel.Margin = new Padding(2, 10, 2, 0);
+        _technicalLabel.Height = LogicalToDeviceUnits(22);
+        root.Controls.Add(_technicalLabel, 0, 3);
+        root.SetColumnSpan(_technicalLabel, 2);
 
         Controls.Add(root);
-        Controls.Add(statusStrip);
     }
 
     private static Control BuildHeader()
     {
-        var header = new FlowLayoutPanel
+        var header = new TableLayoutPanel
         {
             AutoSize = true,
-            FlowDirection = FlowDirection.TopDown,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 0, 8),
+            ColumnCount = 2,
+            RowCount = 2,
+            Margin = new Padding(0, 0, 0, 16),
         };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
         header.Controls.Add(new Label
         {
             Text = "SmartControl",
             AutoSize = true,
-            Font = new Font("Segoe UI Semibold", 20f),
+            Font = Typography.Title,
+            ForeColor = Palette.Text,
             Margin = new Padding(0),
-        });
-        header.Controls.Add(new Label
+        }, 0, 0);
+        header.Controls.Add(new Pill("Modo de prueba · las acciones se simulan", Palette.WarningSoft, Palette.WarningOnSoft)
         {
-            Text = "Complemento para Windows · versión de desarrollo. Las acciones se simulan: no se controla ninguna aplicación.",
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(12, 4, 0, 0),
+        }, 1, 0);
+        var subtitle = new Label
+        {
+            Text = "Controla tus presentaciones y tu música con gestos del reloj. Por ahora ninguna aplicación se controla de verdad.",
             AutoSize = true,
-            ForeColor = MutedText,
-            Margin = new Padding(2, 0, 0, 0),
-        });
+            ForeColor = Palette.TextMuted,
+            Margin = new Padding(2, 2, 0, 0),
+        };
+        header.Controls.Add(subtitle, 0, 1);
+        header.SetColumnSpan(subtitle, 2);
         return header;
     }
 
-    private Control BuildStatusPanel()
+    private Control BuildStatusCard()
     {
-        var panel = new TableLayoutPanel
+        var card = new Card
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            Padding = new Padding(20, 16, 16, 16),
+            Margin = new Padding(0, 0, 0, 16),
+        };
+        var grid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
             ColumnCount = 3,
             RowCount = 2,
-            Margin = new Padding(0, 0, 0, 10),
-            Padding = new Padding(10, 8, 10, 8),
-            BackColor = SystemColors.Control,
+            BackColor = Palette.Surface,
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        _stateDot.Text = "●";
-        _stateDot.AutoSize = true;
-        _stateDot.Font = new Font("Segoe UI", 14f);
-        _stateDot.Margin = new Padding(0, 0, 6, 0);
+        var dot = LogicalToDeviceUnits(14);
+        _stateDot.Size = new Size(dot, dot);
+        _stateDot.Anchor = AnchorStyles.None;
+        _stateDot.Margin = new Padding(0, 0, 14, 0);
         _stateDot.AccessibleName = "Indicador de estado";
 
-        _stateLabel.AutoSize = true;
-        _stateLabel.Font = new Font("Segoe UI Semibold", 10.5f);
-        _stateLabel.Anchor = AnchorStyles.Left;
+        _stateTitle.AutoSize = true;
+        _stateTitle.Font = Typography.StatusTitle;
+        _stateTitle.ForeColor = Palette.Text;
+        _stateTitle.Margin = new Padding(0);
 
-        _connectionLabel.AutoSize = true;
-        _connectionLabel.ForeColor = MutedText;
-        _connectionLabel.Margin = new Padding(3, 0, 3, 0);
+        _stateDetail.AutoSize = true;
+        _stateDetail.ForeColor = Palette.TextMuted;
+        _stateDetail.Margin = new Padding(1, 2, 0, 0);
 
-        _startStopButton.AutoSize = true;
-        _startStopButton.Padding = new Padding(10, 2, 10, 2);
+        _startStopButton.Name = "receiverToggle";
+        _startStopButton.Size = new Size(LogicalToDeviceUnits(132), LogicalToDeviceUnits(38));
         _startStopButton.Anchor = AnchorStyles.Right;
         _startStopButton.Click += async (_, _) => await ToggleReceiverAsync();
 
-        panel.Controls.Add(_stateDot, 0, 0);
-        panel.SetRowSpan(_stateDot, 2);
-        panel.Controls.Add(_stateLabel, 1, 0);
-        panel.Controls.Add(_connectionLabel, 1, 1);
-        panel.Controls.Add(_startStopButton, 2, 0);
-        panel.SetRowSpan(_startStopButton, 2);
-        return panel;
+        grid.Controls.Add(_stateDot, 0, 0);
+        grid.SetRowSpan(_stateDot, 2);
+        grid.Controls.Add(_stateTitle, 1, 0);
+        grid.Controls.Add(_stateDetail, 1, 1);
+        grid.Controls.Add(_startStopButton, 2, 0);
+        grid.SetRowSpan(_startStopButton, 2);
+        card.Controls.Add(grid);
+        return card;
     }
 
-    private Control BuildCommandList()
+    private Control BuildActivityCard()
     {
-        var group = new GroupBox { Text = "Comandos recibidos", Dock = DockStyle.Fill, Padding = new Padding(8) };
-        _commandList.Dock = DockStyle.Fill;
-        _commandList.View = View.Details;
-        _commandList.FullRowSelect = true;
-        _commandList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
-        _commandList.BorderStyle = BorderStyle.None;
-        _commandList.Columns.Add("Hora", LogicalToDeviceUnits(70));
-        _commandList.Columns.Add("Resultado", LogicalToDeviceUnits(180));
-        _commandList.Columns.Add("Acción", LogicalToDeviceUnits(120));
-        _commandList.Columns.Add("Modo", LogicalToDeviceUnits(110));
-        _commandList.Columns.Add("Motivo", LogicalToDeviceUnits(220));
-        _commandList.Columns.Add("Detalle", LogicalToDeviceUnits(300));
-        // La última columna ocupa el espacio restante.
-        _commandList.ClientSizeChanged += (_, _) =>
+        // El margen inferior deja libre la esquina redondeada de la tarjeta.
+        var card = new Card { Dock = DockStyle.Fill, Padding = new Padding(1, 1, 1, 8), Margin = new Padding(0, 0, 8, 0) };
+
+        var header = new TableLayoutPanel
         {
-            var used = 0;
-            for (var i = 0; i < _commandList.Columns.Count - 1; i++)
-                used += _commandList.Columns[i].Width;
-            _commandList.Columns[^1].Width = Math.Max(LogicalToDeviceUnits(200), _commandList.ClientSize.Width - used);
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            Padding = new Padding(19, 14, 12, 8),
+            BackColor = Palette.Surface,
         };
-        group.Controls.Add(_commandList);
-        return group;
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var title = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Margin = new Padding(0), BackColor = Palette.Surface };
+        title.Controls.Add(new Label { Text = "Actividad", AutoSize = true, Font = Typography.Section, ForeColor = Palette.Text, Margin = new Padding(0) });
+        title.Controls.Add(new Label { Text = "Lo más reciente arriba. Verde: se realizó. Rojo: se bloqueó y no se hizo nada.", AutoSize = true, ForeColor = Palette.TextMuted, Margin = new Padding(0, 2, 0, 0) });
+        header.Controls.Add(title, 0, 0);
+
+        var clear = new SmartButton
+        {
+            Text = "Limpiar",
+            Kind = ButtonKind.Subtle,
+            Size = new Size(LogicalToDeviceUnits(88), LogicalToDeviceUnits(34)),
+            Anchor = AnchorStyles.Right | AnchorStyles.Top,
+            AccessibleDescription = "Vacía la lista de actividad. El registro en disco no cambia.",
+        };
+        clear.Click += (_, _) =>
+        {
+            _activity.Clear();
+            clear.Enabled = false;
+        };
+        clear.Enabled = false;
+        _activity.EntryAdded += (_, _) => clear.Enabled = true;
+        header.Controls.Add(clear, 1, 0);
+
+        _activity.Dock = DockStyle.Fill;
+        _activity.EmptyTitle = "Todavía no hay actividad";
+        _activity.EmptyDetail = "Aquí verás cada comando que llegue: si se realizó o se bloqueó, y por qué. Prueba uno desde «Probar sin el reloj».";
+
+        // Fill primero para que el encabezado (Top) se acomode antes.
+        card.Controls.Add(_activity);
+        card.Controls.Add(header);
+        return card;
     }
 
-    private Control BuildTestPanel()
+    private Control BuildTestCard()
     {
-        var group = new GroupBox { Text = "Comandos de prueba", Dock = DockStyle.Fill, Padding = new Padding(10), Margin = new Padding(10, 3, 0, 3) };
+        var card = new Card { Dock = DockStyle.Fill, Padding = new Padding(20, 16, 12, 12), Margin = new Padding(8, 0, 0, 0) };
         var flow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
+            BackColor = Palette.Surface,
+            Padding = new Padding(0, 0, 8, 0),
         };
-        var width = LogicalToDeviceUnits(280);
 
-        flow.Controls.Add(new Label
+        flow.Controls.Add(new Label { Text = "Probar sin el reloj", AutoSize = true, Font = Typography.Section, ForeColor = Palette.Text, Margin = new Padding(0) });
+        flow.Controls.Add(MutedText("Envía un comando desde este equipo. No es un gesto del reloj.", new Padding(0, 2, 0, 14)));
+
+        flow.Controls.Add(new Label { Text = "Modo", AutoSize = true, Font = Typography.Label, ForeColor = Palette.Text, Margin = new Padding(0, 0, 0, 6) });
+        _presentationMode.Text = Texts.ModeName(ControlMode.Presentation);
+        _multimediaMode.Text = Texts.ModeName(ControlMode.Multimedia);
+        _presentationMode.Click += (_, _) => SelectTestMode(ControlMode.Presentation);
+        _multimediaMode.Click += (_, _) => SelectTestMode(ControlMode.Multimedia);
+        flow.Controls.Add(TwoColumns(_presentationMode, _multimediaMode, 38, new Padding(0, 0, 0, 10)));
+
+        // Los nombres sirven de AutomationId: «Pausar» también es el texto del botón del receptor.
+        _presentationMode.Name = "testModePresentation";
+        _multimediaMode.Name = "testModeMultimedia";
+        _presentationMode.IsOption = _multimediaMode.IsOption = true;
+        _firstAction.Name = "testFirstAction";
+        _secondAction.Name = "testSecondAction";
+        _firstAction.Kind = ButtonKind.Primary;
+        _secondAction.Kind = ButtonKind.Primary;
+        _firstAction.Click += async (_, _) => await SendTestCommandAsync(CommandAllowlist.ActionsFor(_testMode)[ActionOrder(0)]);
+        _secondAction.Click += async (_, _) => await SendTestCommandAsync(CommandAllowlist.ActionsFor(_testMode)[ActionOrder(1)]);
+        flow.Controls.Add(TwoColumns(_firstAction, _secondAction, 46, new Padding(0)));
+
+        flow.Controls.Add(new Panel { Height = 1, BackColor = Palette.Outline, Margin = new Padding(0, 16, 0, 14) });
+
+        flow.Controls.Add(new Label { Text = "Comprobar la seguridad", AutoSize = true, Font = Typography.Label, ForeColor = Palette.Text, Margin = new Padding(0) });
+        flow.Controls.Add(MutedText("Deben bloquearse y aparecer en rojo en la actividad.", new Padding(0, 2, 0, 8)));
+
+        flow.Controls.Add(CheckButton("Orden no permitida", () => SendRawRequestAsync("cmd.exe /c calc")));
+        flow.Controls.Add(CheckButton("Acción de otro modo", () =>
         {
-            Text = "Envían mensajes reales al receptor por 127.0.0.1. Son comandos explícitos, no gestos reconocidos.",
-            ForeColor = MutedText,
-            MaximumSize = new Size(width, 0),
-            AutoSize = true,
-            Margin = new Padding(0, 0, 0, 10),
-        });
-
-        flow.Controls.Add(new Label { Text = "Modo declarado en el mensaje", AutoSize = true });
-        _modeCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        _modeCombo.Width = width;
-        _modeCombo.Items.AddRange(new object[] { "Presentación (PRESENTATION)", "Multimedia (MULTIMEDIA)" });
-        _modeCombo.SelectedIndex = 0;
-        _modeCombo.Margin = new Padding(0, 2, 0, 8);
-        flow.Controls.Add(_modeCombo);
-
-        foreach (var action in new[] { AllowedAction.SlideNext, AllowedAction.SlidePrevious, AllowedAction.MediaPlay, AllowedAction.MediaPause })
-        {
-            var wireName = CommandAllowlist.ToWireName(action);
-            flow.Controls.Add(MakeButton(wireName, width, () => SendTestCommandAsync(wireName)));
-        }
-
-        flow.Controls.Add(new Label { Text = "Casos que deben rechazarse", AutoSize = true, Margin = new Padding(0, 12, 0, 2) });
-        flow.Controls.Add(MakeButton("Acción fuera de la lista blanca", width, () => SendTestCommandAsync("cmd.exe /c calc")));
-        flow.Controls.Add(MakeButton("Confianza baja (0.40)", width, () => SendTestCommandAsync(CommandAllowlist.ToWireName(AllowedAction.SlideNext), 0.40)));
-        flow.Controls.Add(MakeButton("Mensaje mal formado", width, () => SendRawAsync(System.Text.Encoding.UTF8.GetBytes("{no es json"))));
-        flow.Controls.Add(MakeButton("Repetir el último mensaje", width, () =>
+            var other = _testMode == ControlMode.Presentation ? ControlMode.Multimedia : ControlMode.Presentation;
+            return SendTestCommandAsync(CommandAllowlist.ActionsFor(other)[0]);
+        }));
+        flow.Controls.Add(CheckButton("Gesto poco claro", () => SendTestCommandAsync(CommandAllowlist.ActionsFor(_testMode)[0], 0.40)));
+        flow.Controls.Add(CheckButton("Mensaje dañado", () => SendRawAsync(System.Text.Encoding.UTF8.GetBytes("{no es json"))));
+        flow.Controls.Add(CheckButton("Repetir el último mensaje", () =>
         {
             if (_lastSentMessage is not null)
                 return SendRawAsync(_lastSentMessage);
-            ShowLastResponse("Todavía no se ha enviado ningún mensaje.", IdleColor);
+            ShowLastResponse("Primero envía un comando para poder repetirlo.", Palette.TextMuted);
             return Task.CompletedTask;
         }));
 
         _lastResponseLabel.AutoSize = true;
-        _lastResponseLabel.MaximumSize = new Size(width, 0);
-        _lastResponseLabel.Margin = new Padding(0, 12, 0, 0);
+        _lastResponseLabel.Font = Typography.Label;
+        _lastResponseLabel.Margin = new Padding(0, 10, 0, 0);
+        _lastResponseLabel.AccessibleRole = AccessibleRole.StaticText;
         flow.Controls.Add(_lastResponseLabel);
 
         // Los controles ocupan todo el ancho disponible, sin barra de desplazamiento horizontal.
         flow.ClientSizeChanged += (_, _) =>
         {
-            var available = flow.ClientSize.Width - SystemInformation.VerticalScrollBarWidth;
+            var available = flow.ClientSize.Width - flow.Padding.Horizontal;
             foreach (Control child in flow.Controls)
             {
                 if (child is Label label) label.MaximumSize = new Size(available, 0);
@@ -256,24 +312,83 @@ internal sealed class MainForm : Form
             }
         };
 
-        group.Controls.Add(flow);
-        return group;
+        card.Controls.Add(flow);
+        return card;
     }
 
-    private Button MakeButton(string text, int width, Func<Task> onClick)
+    private static Label MutedText(string text, Padding margin) => new()
     {
-        var button = new Button { Text = text, Width = width, Height = LogicalToDeviceUnits(32), Margin = new Padding(0, 0, 0, 6) };
+        Text = text,
+        AutoSize = true,
+        ForeColor = Palette.TextMuted,
+        Margin = margin,
+    };
+
+    private TableLayoutPanel TwoColumns(Control left, Control right, int height, Padding margin)
+    {
+        var grid = new TableLayoutPanel
+        {
+            ColumnCount = 2,
+            RowCount = 1,
+            Height = LogicalToDeviceUnits(height),
+            Margin = margin,
+            BackColor = Palette.Surface,
+        };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        left.Dock = DockStyle.Fill;
+        right.Dock = DockStyle.Fill;
+        left.Margin = new Padding(0, 0, 4, 0);
+        right.Margin = new Padding(4, 0, 0, 0);
+        grid.Controls.Add(left, 0, 0);
+        grid.Controls.Add(right, 1, 0);
+        return grid;
+    }
+
+    private SmartButton CheckButton(string text, Func<Task> onClick)
+    {
+        var button = new SmartButton
+        {
+            Text = text,
+            AlignLeft = true,
+            Height = LogicalToDeviceUnits(34),
+            Margin = new Padding(0, 0, 0, 5),
+        };
         button.Click += async (_, _) => await onClick();
         return button;
     }
 
-    private Task SendTestCommandAsync(string requestedAction, double confidence = 1.0)
+    /// <summary>En Presentación, «Anterior» va a la izquierda de «Siguiente», como en el reloj.</summary>
+    private int ActionOrder(int column) => _testMode == ControlMode.Presentation ? 1 - column : column;
+
+    private void SelectTestMode(ControlMode mode)
+    {
+        _testMode = mode;
+        _presentationMode.Selected = mode == ControlMode.Presentation;
+        _multimediaMode.Selected = mode == ControlMode.Multimedia;
+
+        var actions = CommandAllowlist.ActionsFor(mode);
+        var first = actions[ActionOrder(0)];
+        var second = actions[ActionOrder(1)];
+        _firstAction.Text = Texts.ShortActionName(first);
+        _firstAction.Glyph = Texts.ActionGlyph(first);
+        _secondAction.Text = Texts.ShortActionName(second);
+        _secondAction.Glyph = Texts.ActionGlyph(second);
+        _firstAction.Invalidate();
+        _secondAction.Invalidate();
+    }
+
+    private Task SendTestCommandAsync(AllowedAction action, double confidence = 1.0) =>
+        SendRawRequestAsync(CommandAllowlist.ToWireName(action), confidence);
+
+    private Task SendRawRequestAsync(string requestedAction, double confidence = 1.0)
     {
         var request = new CommandRequest
         {
             DeviceId = _testDeviceId,
             SessionToken = _testToken,
-            ActiveMode = _modeCombo.SelectedIndex == 1 ? "MULTIMEDIA" : "PRESENTATION",
+            ActiveMode = CommandAllowlist.ToWireName(_testMode),
             RequestedAction = requestedAction,
             Confidence = confidence,
         };
@@ -286,7 +401,7 @@ internal sealed class MainForm : Form
     {
         if (_receiver.State != ReceiverState.Running)
         {
-            ShowLastResponse("El receptor está detenido. Inícialo para enviar comandos de prueba.", RejectedColor);
+            ShowLastResponse("SmartControl está en pausa. Reanúdalo para enviar pruebas.", Palette.DangerOnSoft);
             return;
         }
         try
@@ -295,7 +410,7 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex) when (ex is SocketException or System.IO.IOException or OperationCanceledException)
         {
-            ShowLastResponse("No se pudo entregar el mensaje al receptor local.", RejectedColor);
+            ShowLastResponse("No se pudo entregar el mensaje. Comprueba que SmartControl esté activo y vuelve a intentarlo.", Palette.DangerOnSoft);
         }
     }
 
@@ -305,67 +420,45 @@ internal sealed class MainForm : Form
         _lastResponseLabel.ForeColor = color;
     }
 
-    private void AddCommandRow(CommandProcessedEventArgs e)
+    private void AddActivity(CommandProcessedEventArgs e)
     {
-        var result = e.Result;
-        var accepted = result.Status == CommandStatus.Accepted;
-        // Solo se muestran valores validados o generados por la aplicación, nunca texto recibido.
-        var item = new ListViewItem(e.ReceivedAt.ToString("HH:mm:ss"))
-        {
-            ForeColor = accepted ? AcceptedColor : RejectedColor,
-        };
-        item.SubItems.Add(DescribeStatus(result.Status));
-        item.SubItems.Add(result.Action is { } action ? CommandAllowlist.ToWireName(action) : "—");
-        item.SubItems.Add(result.Mode is { } mode ? CommandAllowlist.ToWireName(mode) : "—");
-        item.SubItems.Add(result.ReasonCode);
-        item.SubItems.Add(e.Effect ?? "No se ejecutó ninguna acción");
-
-        _commandList.BeginUpdate();
-        _commandList.Items.Insert(0, item);
-        while (_commandList.Items.Count > MaxRows)
-            _commandList.Items.RemoveAt(_commandList.Items.Count - 1);
-        _commandList.EndUpdate();
-
+        var entry = ActivityEntry.From(e);
+        _activity.Add(entry);
         ShowLastResponse(
-            accepted ? $"Aceptado: {e.Effect}" : $"Rechazado ({result.ReasonCode}). No se ejecutó ninguna acción.",
-            accepted ? AcceptedColor : RejectedColor);
+            entry.Accepted ? $"Hecho: {entry.Title} (simulado)." : $"Bloqueado: {entry.Title.ToLowerInvariant()}.",
+            entry.Accepted ? Palette.SuccessOnSoft : Palette.DangerOnSoft);
     }
-
-    private static string DescribeStatus(CommandStatus status) => status switch
-    {
-        CommandStatus.Accepted => "Aceptado (simulado)",
-        CommandStatus.RejectedLowConfidence => "Rechazado: confianza baja",
-        CommandStatus.RejectedNotAllowed => "Rechazado: no permitido",
-        CommandStatus.RejectedInvalidMessage => "Rechazado: mensaje inválido",
-        CommandStatus.ExecutionError => "Error de ejecución",
-        _ => status.ToString(),
-    };
 
     private void UpdateStatus()
     {
         switch (_receiver.State)
         {
             case ReceiverState.Running:
-                _stateDot.ForeColor = AcceptedColor;
-                _stateLabel.Text = $"Receptor activo en 127.0.0.1:{_receiver.Port}";
-                _startStopButton.Text = "Detener receptor";
+                _stateDot.DotColor = Palette.Success;
+                _stateTitle.Text = "Recibiendo comandos";
+                _stateDetail.Text = "Por ahora solo desde este equipo: el reloj todavía no puede conectarse.";
+                _startStopButton.Text = "Pausar";
+                _startStopButton.Kind = ButtonKind.Secondary;
+                _technicalLabel.Text = $"Detalles técnicos · escucha en 127.0.0.1:{_receiver.Port} · conexiones abiertas: {_receiver.ConnectedClients} · registro: {_logPath}";
                 break;
             case ReceiverState.Faulted:
-                _stateDot.ForeColor = RejectedColor;
-                _stateLabel.Text = "Error: " + (_receiver.LastError ?? "no se pudo iniciar el receptor");
+                _stateDot.DotColor = Palette.Danger;
+                _stateTitle.Text = "No se pudo iniciar";
+                _stateDetail.Text = _receiver.LastError ?? "Algo impidió abrir la recepción de comandos.";
                 _startStopButton.Text = "Reintentar";
+                _startStopButton.Kind = ButtonKind.Primary;
+                _technicalLabel.Text = $"Detalles técnicos · receptor con error · registro: {_logPath}";
                 break;
             default:
-                _stateDot.ForeColor = IdleColor;
-                _stateLabel.Text = "Receptor detenido";
-                _startStopButton.Text = "Iniciar receptor";
+                _stateDot.DotColor = Palette.Idle;
+                _stateTitle.Text = "En pausa";
+                _stateDetail.Text = "No se recibe ningún comando hasta que lo reanudes.";
+                _startStopButton.Text = "Reanudar";
+                _startStopButton.Kind = ButtonKind.Primary;
+                _technicalLabel.Text = $"Detalles técnicos · receptor detenido · registro: {_logPath}";
                 break;
         }
-
-        var clients = _receiver.ConnectedClients;
-        _connectionLabel.Text = _receiver.State == ReceiverState.Running
-            ? $"Conexiones locales activas: {clients}. Solo acepta conexiones de este equipo; el reloj aún no puede conectarse."
-            : "Sin conexiones.";
+        _startStopButton.Invalidate();
     }
 
     private async Task ToggleReceiverAsync()
