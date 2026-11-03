@@ -240,7 +240,7 @@ internal sealed class MainForm : Form
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var title = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, Margin = new Padding(0) }.WithColors(back: () => Palette.Surface);
         title.Controls.Add(new Label { Text = "Actividad", AutoSize = true, Font = Typography.Section, Margin = new Padding(0) }.WithColors(fore: () => Palette.Text));
-        title.Controls.Add(new Label { Text = "Lo más reciente arriba. Verde: se realizó. Rojo: se bloqueó y no se hizo nada.", AutoSize = true, Margin = new Padding(0, 2, 0, 0) }.WithColors(fore: () => Palette.TextMuted));
+        title.Controls.Add(new Label { Text = "Lo más reciente arriba. Una X marca lo que se bloqueó y no se realizó.", AutoSize = true, Margin = new Padding(0, 2, 0, 0) }.WithColors(fore: () => Palette.TextMuted));
         header.Controls.Add(title, 0, 0);
 
         var clear = new SmartButton
@@ -307,7 +307,7 @@ internal sealed class MainForm : Form
         flow.Controls.Add(new Panel { Height = 1, Margin = new Padding(0, 16, 0, 14) }.WithColors(back: () => Palette.Outline));
 
         flow.Controls.Add(new Label { Text = "Comprobar la seguridad", AutoSize = true, Font = Typography.Label, Margin = new Padding(0) }.WithColors(fore: () => Palette.Text));
-        flow.Controls.Add(MutedText("Deben bloquearse y aparecer en rojo en la actividad.", new Padding(0, 2, 0, 8)));
+        flow.Controls.Add(MutedText("Deben bloquearse y aparecer en la actividad marcadas con una X.", new Padding(0, 2, 0, 8)));
 
         flow.Controls.Add(CheckButton("Orden no permitida", () => SendRawRequestAsync("cmd.exe /c calc")));
         flow.Controls.Add(CheckButton("Acción de otro modo", () =>

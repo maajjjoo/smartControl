@@ -24,6 +24,39 @@ internal static class HighContrastTests
         yield return ("contraste alto: la ventana cambia de colores y vuelve sin reiniciarse", WindowSwitchesBothWays);
         yield return ("contraste alto: los botones se pintan con colores de botón y de resaltado", ButtonsPaintWithSystemColors);
         yield return ("contraste alto: la fila seleccionada usa el resaltado del sistema", SelectedRowUsesHighlight);
+        yield return ("contraste alto: ningún texto pide distinguir colores", NoTextDependsOnColor);
+    }
+
+    /// <summary>
+    /// Con contraste alto (o sin distinguir colores) no hay verde ni rojo: los textos explican los
+    /// bloqueos por la X, y todos los bloqueos llevan de verdad ese icono (Cancel, U+E711).
+    /// </summary>
+    private static void NoTextDependsOnColor()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "smartcontrol-desktop-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var log = new FileEventLog(directory);
+            var validator = new CommandValidator(new Dictionary<string, string> { ["d"] = new string('A', 64) });
+            var receiver = new LocalCommandReceiver(validator, new SimulatedCommandExecutor(), log, port: 0);
+            using var form = new MainForm(receiver, log, "d", new string('A', 64));
+            var colors = new[] { "verde", "rojo", "roja", "amarillo", "azul", "naranja" };
+            foreach (var label in Descendants(form).OfType<Label>())
+            foreach (var color in colors)
+                Check.True(!label.Text.Contains(color, StringComparison.OrdinalIgnoreCase), $"«{label.Text}» menciona el color {color}");
+            Check.True(Descendants(form).OfType<Label>().Any(l => l.Text.Contains("Una X marca lo que se bloqueó", StringComparison.Ordinal)),
+                "la actividad explica cómo se ve un bloqueo");
+
+            Check.Equal("", Icons.Blocked, "el texto describe una X");
+            var blocked = ActivityEntry.From(new CommandProcessedEventArgs(
+                ValidationResult.Reject(CommandStatus.RejectedLowConfidence, ReasonCodes.BelowThreshold), null, DateTimeOffset.Now));
+            Check.Equal(Icons.Blocked, blocked.Glyph, "un bloqueo lleva la X");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static void WithHighContrast(bool enabled, Action body)
