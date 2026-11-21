@@ -91,6 +91,8 @@ internal static class ValidatorTests
             ("PRESENTATION", "SLIDE_PREVIOUS", AllowedAction.SlidePrevious, ControlMode.Presentation),
             ("MULTIMEDIA", "MEDIA_PLAY", AllowedAction.MediaPlay, ControlMode.Multimedia),
             ("MULTIMEDIA", "MEDIA_PAUSE", AllowedAction.MediaPause, ControlMode.Multimedia),
+            ("MULTIMEDIA", "MEDIA_NEXT_TRACK", AllowedAction.MediaNextTrack, ControlMode.Multimedia),
+            ("MULTIMEDIA", "MEDIA_PREVIOUS_TRACK", AllowedAction.MediaPreviousTrack, ControlMode.Multimedia),
         };
         var validator = NewValidator();
         foreach (var (mode, action, expected, expectedMode) in cases)

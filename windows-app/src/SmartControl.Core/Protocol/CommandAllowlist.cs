@@ -20,6 +20,8 @@ public enum AllowedAction
     SlidePrevious,
     MediaPlay,
     MediaPause,
+    MediaNextTrack,
+    MediaPreviousTrack,
 }
 
 /// <summary>
@@ -29,7 +31,8 @@ public enum AllowedAction
 public static class CommandAllowlist
 {
     private static readonly AllowedAction[] PresentationActions = { AllowedAction.SlideNext, AllowedAction.SlidePrevious };
-    private static readonly AllowedAction[] MultimediaActions = { AllowedAction.MediaPlay, AllowedAction.MediaPause };
+    private static readonly AllowedAction[] MultimediaActions =
+        { AllowedAction.MediaPlay, AllowedAction.MediaPause, AllowedAction.MediaNextTrack, AllowedAction.MediaPreviousTrack };
 
     public static bool TryParseMode(string value, out ControlMode mode)
     {
@@ -49,6 +52,8 @@ public static class CommandAllowlist
             case "SLIDE_PREVIOUS": action = AllowedAction.SlidePrevious; return true;
             case "MEDIA_PLAY": action = AllowedAction.MediaPlay; return true;
             case "MEDIA_PAUSE": action = AllowedAction.MediaPause; return true;
+            case "MEDIA_NEXT_TRACK": action = AllowedAction.MediaNextTrack; return true;
+            case "MEDIA_PREVIOUS_TRACK": action = AllowedAction.MediaPreviousTrack; return true;
             default: action = default; return false;
         }
     }
@@ -56,7 +61,8 @@ public static class CommandAllowlist
     public static ControlMode RequiredMode(AllowedAction action) => action switch
     {
         AllowedAction.SlideNext or AllowedAction.SlidePrevious => ControlMode.Presentation,
-        AllowedAction.MediaPlay or AllowedAction.MediaPause => ControlMode.Multimedia,
+        AllowedAction.MediaPlay or AllowedAction.MediaPause
+            or AllowedAction.MediaNextTrack or AllowedAction.MediaPreviousTrack => ControlMode.Multimedia,
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 
@@ -80,6 +86,8 @@ public static class CommandAllowlist
         AllowedAction.SlidePrevious => "SLIDE_PREVIOUS",
         AllowedAction.MediaPlay => "MEDIA_PLAY",
         AllowedAction.MediaPause => "MEDIA_PAUSE",
+        AllowedAction.MediaNextTrack => "MEDIA_NEXT_TRACK",
+        AllowedAction.MediaPreviousTrack => "MEDIA_PREVIOUS_TRACK",
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 }

@@ -58,8 +58,8 @@ internal static class RecognitionPipelineTests
         {
             (ControlMode.Presentation, 4.0, AllowedAction.SlideNext),
             (ControlMode.Presentation, -4.0, AllowedAction.SlidePrevious),
-            (ControlMode.Multimedia, 4.0, AllowedAction.MediaPlay),
-            (ControlMode.Multimedia, -4.0, AllowedAction.MediaPause),
+            (ControlMode.Multimedia, 4.0, AllowedAction.MediaNextTrack),
+            (ControlMode.Multimedia, -4.0, AllowedAction.MediaPreviousTrack),
         };
         var pipeline = Pipeline();
         foreach (var (mode, plateau, expected) in cases)

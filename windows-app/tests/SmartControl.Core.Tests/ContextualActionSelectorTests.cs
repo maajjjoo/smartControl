@@ -28,8 +28,8 @@ internal static class ContextualActionSelectorTests
     {
         Check.Equal(AllowedAction.SlideNext, Select(ControlMode.Presentation, GestureClass.TwistOut));
         Check.Equal(AllowedAction.SlidePrevious, Select(ControlMode.Presentation, GestureClass.TwistIn));
-        Check.Equal(AllowedAction.MediaPlay, Select(ControlMode.Multimedia, GestureClass.TwistOut));
-        Check.Equal(AllowedAction.MediaPause, Select(ControlMode.Multimedia, GestureClass.TwistIn));
+        Check.Equal(AllowedAction.MediaNextTrack, Select(ControlMode.Multimedia, GestureClass.TwistOut));
+        Check.Equal(AllowedAction.MediaPreviousTrack, Select(ControlMode.Multimedia, GestureClass.TwistIn));
     }
 
     private static void StaysWithinAllowlist()

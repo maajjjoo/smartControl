@@ -47,6 +47,8 @@ internal static class Texts
         AllowedAction.SlidePrevious => "Diapositiva anterior",
         AllowedAction.MediaPlay => "Reproducir",
         AllowedAction.MediaPause => "Pausar",
+        AllowedAction.MediaNextTrack => "Siguiente canción",
+        AllowedAction.MediaPreviousTrack => "Canción anterior",
         _ => action.ToString(),
     };
 
@@ -63,6 +65,8 @@ internal static class Texts
         AllowedAction.SlidePrevious => Icons.Previous,
         AllowedAction.MediaPlay => Icons.Play,
         AllowedAction.MediaPause => Icons.Pause,
+        AllowedAction.MediaNextTrack => Icons.TrackNext,
+        AllowedAction.MediaPreviousTrack => Icons.TrackPrevious,
         _ => Icons.Check,
     };
 

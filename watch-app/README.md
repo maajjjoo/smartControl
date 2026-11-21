@@ -28,8 +28,10 @@ Proyecto Android de **Wear OS** en Kotlin con **Compose for Wear OS (Material 3)
 
 | Gesto | Presentación | Multimedia |
 |---|---|---|
-| **Giro rápido de la muñeca hacia fuera** | Siguiente diapositiva | Reproducir |
-| **Giro rápido de la muñeca hacia dentro** | Diapositiva anterior | Pausar |
+| **Giro rápido de la muñeca hacia fuera** | Siguiente diapositiva | Siguiente canción |
+| **Giro rápido de la muñeca hacia dentro** | Diapositiva anterior | Canción anterior |
+
+En Multimedia, **Reproducir** y **Pausar** son dos botones redondos en la pantalla (órdenes distintas, sin alternar).
 
 Reglas del reconocedor (eje X del giroscopio, que se supone alineado con el antebrazo):
 - Empieza cuando la velocidad angular supera 2,5 rad/s y termina cuando baja de 1,25 rad/s; debe durar como máximo 600 ms.

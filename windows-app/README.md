@@ -6,7 +6,7 @@ Componente receptor para **Windows (64 bits)** previsto en **C# y .NET**, encarg
 - Comprobar que cada comando pertenezca estrictamente a la lista blanca de acciones permitidas ([RF-15](../docs/SRS.md), [RNF-06](../docs/SRS.md), [security-allowlist.md](../docs/security-allowlist.md)).
 - Ejecutar las acciones explícitas permitidas de manera desacoplada de la capa de red ([RF-07](../docs/SRS.md), [RF-08](../docs/SRS.md), [RF-18](../docs/SRS.md)):
   - **Modo Presentación (`PRESENTATION`):** Avanzar diapositiva (`SLIDE_NEXT`), retroceder diapositiva (`SLIDE_PREVIOUS`).
-  - **Modo Multimedia (`MULTIMEDIA`):** Reproducir multimedia (`MEDIA_PLAY`), pausar multimedia (`MEDIA_PAUSE`).
+  - **Modo Multimedia (`MULTIMEDIA`):** Reproducir (`MEDIA_PLAY`), pausar (`MEDIA_PAUSE`), siguiente canción (`MEDIA_NEXT_TRACK`) y canción anterior (`MEDIA_PREVIOUS_TRACK`).
 
 ## Estado actual (etapa 2: acciones reales en Windows)
 
@@ -16,6 +16,7 @@ Aplicación de escritorio **WinForms sobre .NET 8**. Las acciones aceptadas **se
 |---|---|
 | `SLIDE_NEXT` / `SLIDE_PREVIOUS` | Pulsa **→** / **←** en la ventana que esté al frente (PowerPoint, Google Slides, Canva, PDF a pantalla completa). La presentación debe estar al frente. |
 | `MEDIA_PLAY` / `MEDIA_PAUSE` | Pide **reproducir** o **pausar** al reproductor que tiene el control multimedia de Windows (Spotify, YouTube en el navegador, Reproductor multimedia…). Son dos órdenes distintas: pausar nunca reanuda. |
+| `MEDIA_NEXT_TRACK` / `MEDIA_PREVIOUS_TRACK` | Pide **siguiente** o **anterior canción** al mismo reproductor. |
 
 Si no hay ningún reproductor abierto, el reproductor rechaza la orden o Windows bloquea la tecla, la respuesta es `EXECUTION_ERROR` con el motivo (`NO_MEDIA_SESSION`, `MEDIA_COMMAND_REFUSED`, `INPUT_BLOCKED`). Las teclas son fijas en el código: desde la red solo llega la acción validada. Limitación conocida de Windows: una ventana abierta como administrador no recibe las teclas de una aplicación normal, y Windows no lo indica.
 

@@ -67,8 +67,10 @@ Enviado cuando un gesto ha sido reconocido y asociado a una acción según el mo
 
 | `gestureId` | Movimiento | `PRESENTATION` | `MULTIMEDIA` |
 |---|---|---|---|
-| `WRIST_TWIST_OUT` | Giro rápido de la muñeca "hacia fuera" (ωx > 0) | `SLIDE_NEXT` | `MEDIA_PLAY` |
-| `WRIST_TWIST_IN` | Giro rápido de la muñeca "hacia dentro" (ωx < 0) | `SLIDE_PREVIOUS` | `MEDIA_PAUSE` |
+| `WRIST_TWIST_OUT` | Giro rápido de la muñeca "hacia fuera" (ωx > 0) | `SLIDE_NEXT` | `MEDIA_NEXT_TRACK` |
+| `WRIST_TWIST_IN` | Giro rápido de la muñeca "hacia dentro" (ωx < 0) | `SLIDE_PREVIOUS` | `MEDIA_PREVIOUS_TRACK` |
+
+En `MULTIMEDIA`, `MEDIA_PLAY` y `MEDIA_PAUSE` no tienen gesto: son dos botones en la pantalla del reloj y se envían con `gestureId` `SCREEN_TAP` y `confidence` 1.
 
 El sentido "hacia fuera / hacia dentro" está pendiente de validar en un reloj real (depende de la muñeca y de la posición de la corona). En el reloj, `confidence` es una puntuación heurística en [0, 1] (intensidad del pico × dominancia del eje), no una probabilidad calibrada; el reloj no genera comandos por debajo de 0,80. Desde el 2026-11-20 el reloj envía estos mensajes a Windows por Wi-Fi local (TCP, ver §3.4).
 

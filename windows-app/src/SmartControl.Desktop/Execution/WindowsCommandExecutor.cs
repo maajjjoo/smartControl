@@ -6,7 +6,8 @@ namespace SmartControl.Desktop.Execution;
 
 /// <summary>
 /// Ejecutor real de Windows. Solo recibe un <see cref="AllowedAction"/> ya validado y lo traduce
-/// con un mapeo fijo: flechas para las diapositivas y el control multimedia para la música.
+/// con un mapeo fijo: flechas para las diapositivas y el control multimedia para la música
+/// (reproducir, pausar, siguiente y anterior canción).
 /// </summary>
 internal sealed class WindowsCommandExecutor : ICommandExecutor
 {
@@ -39,6 +40,12 @@ internal sealed class WindowsCommandExecutor : ICommandExecutor
             case AllowedAction.MediaPause:
                 _media.Pause();
                 return "El reproductor activo recibió la orden de pausar";
+            case AllowedAction.MediaNextTrack:
+                _media.NextTrack();
+                return "El reproductor activo pasó a la siguiente canción";
+            case AllowedAction.MediaPreviousTrack:
+                _media.PreviousTrack();
+                return "El reproductor activo volvió a la canción anterior";
             default:
                 throw new ArgumentOutOfRangeException(nameof(action), "Acción fuera de la lista blanca");
         }

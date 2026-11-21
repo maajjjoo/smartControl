@@ -17,7 +17,9 @@ enum class Command(val mode: ControlMode, val label: String) {
     SLIDE_NEXT(ControlMode.PRESENTATION, "Siguiente"),
     SLIDE_PREVIOUS(ControlMode.PRESENTATION, "Anterior"),
     MEDIA_PLAY(ControlMode.MULTIMEDIA, "Reproducir"),
-    MEDIA_PAUSE(ControlMode.MULTIMEDIA, "Pausar");
+    MEDIA_PAUSE(ControlMode.MULTIMEDIA, "Pausar"),
+    MEDIA_NEXT_TRACK(ControlMode.MULTIMEDIA, "Siguiente canción"),
+    MEDIA_PREVIOUS_TRACK(ControlMode.MULTIMEDIA, "Canción anterior");
 
     companion object {
         fun forMode(mode: ControlMode): List<Command> = entries.filter { it.mode == mode }
@@ -85,11 +87,18 @@ sealed interface CommandResult {
     data class GestureUnrecognized(val confidence: Float, val reason: UnclearReason) : CommandResult
 }
 
-/** Gesto que produce [command] (para los toques en la guía, que equivalen a ese gesto). */
-fun gestureFor(command: Command): WristGesture = when (command) {
-    Command.SLIDE_NEXT, Command.MEDIA_PLAY -> WristGesture.TWIST_OUT
-    Command.SLIDE_PREVIOUS, Command.MEDIA_PAUSE -> WristGesture.TWIST_IN
+/**
+ * Gesto que produce [command] (los toques en la guía equivalen a ese gesto), o null si el
+ * comando no tiene gesto: reproducir y pausar se tocan en la pantalla.
+ */
+fun gestureFor(command: Command): WristGesture? = when (command) {
+    Command.SLIDE_NEXT, Command.MEDIA_NEXT_TRACK -> WristGesture.TWIST_OUT
+    Command.SLIDE_PREVIOUS, Command.MEDIA_PREVIOUS_TRACK -> WristGesture.TWIST_IN
+    Command.MEDIA_PLAY, Command.MEDIA_PAUSE -> null
 }
+
+/** Identificador que acompaña a un comando tocado en la pantalla en lugar de hecho con un gesto. */
+const val SCREEN_TAP_ID = "SCREEN_TAP"
 
 /** Qué comando produce cada gesto según el modo activo (RF-04, RF-IA-03). */
 fun commandFor(mode: ControlMode, gesture: WristGesture): Command = when (mode) {
@@ -97,9 +106,10 @@ fun commandFor(mode: ControlMode, gesture: WristGesture): Command = when (mode) 
         WristGesture.TWIST_OUT -> Command.SLIDE_NEXT
         WristGesture.TWIST_IN -> Command.SLIDE_PREVIOUS
     }
+    // En Multimedia los giros cambian de canción; reproducir y pausar son botones de la pantalla.
     ControlMode.MULTIMEDIA -> when (gesture) {
-        WristGesture.TWIST_OUT -> Command.MEDIA_PLAY
-        WristGesture.TWIST_IN -> Command.MEDIA_PAUSE
+        WristGesture.TWIST_OUT -> Command.MEDIA_NEXT_TRACK
+        WristGesture.TWIST_IN -> Command.MEDIA_PREVIOUS_TRACK
     }
 }
 

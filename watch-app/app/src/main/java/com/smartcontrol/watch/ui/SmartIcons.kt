@@ -54,6 +54,12 @@ object SmartIcons {
         width = 2.4f,
     )
 
+    /** Triángulo: reproducir. */
+    val Play = stroke("Play", "M8 5.5v13l10.5-6.5z", width = 2.4f)
+
+    /** Dos barras: pausar. */
+    val Pause = stroke("Pause", "M9 6v12 M15 6v12", width = 3f)
+
     /** Flechas arriba y abajo: cambiar de pantalla. */
     val Swipe = stroke("Swipe", "M8 20V4 M4.5 7.5L8 4l3.5 3.5 M16 4v16 M12.5 16.5L16 20l3.5-3.5")
 

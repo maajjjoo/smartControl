@@ -23,8 +23,10 @@ public static class ContextualActionSelector
         {
             (ControlMode.Presentation, GestureClass.TwistOut) => AllowedAction.SlideNext,
             (ControlMode.Presentation, GestureClass.TwistIn) => AllowedAction.SlidePrevious,
-            (ControlMode.Multimedia, GestureClass.TwistOut) => AllowedAction.MediaPlay,
-            (ControlMode.Multimedia, GestureClass.TwistIn) => AllowedAction.MediaPause,
+            // Igual que en el reloj: en Multimedia los giros cambian de canción; reproducir y
+            // pausar se tocan en la pantalla del reloj.
+            (ControlMode.Multimedia, GestureClass.TwistOut) => AllowedAction.MediaNextTrack,
+            (ControlMode.Multimedia, GestureClass.TwistIn) => AllowedAction.MediaPreviousTrack,
             _ => null,
         };
         if (candidate is null)

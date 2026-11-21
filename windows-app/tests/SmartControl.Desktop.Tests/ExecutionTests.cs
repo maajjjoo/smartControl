@@ -40,6 +40,8 @@ internal static class ExecutionTests
 
         public void Play() { if (Failure is not null) throw Failure; Calls.Add("play"); }
         public void Pause() { if (Failure is not null) throw Failure; Calls.Add("pause"); }
+        public void NextTrack() { if (Failure is not null) throw Failure; Calls.Add("next"); }
+        public void PreviousTrack() { if (Failure is not null) throw Failure; Calls.Add("previous"); }
     }
 
     private static void EachActionHasOneTarget()
@@ -53,9 +55,11 @@ internal static class ExecutionTests
         executor.Execute(AllowedAction.SlidePrevious);
         executor.Execute(AllowedAction.MediaPlay);
         executor.Execute(AllowedAction.MediaPause);
+        executor.Execute(AllowedAction.MediaNextTrack);
+        executor.Execute(AllowedAction.MediaPreviousTrack);
 
         Check.Equal("Next,Previous", string.Join(",", keys.Pressed));
-        Check.Equal("play,pause", string.Join(",", media.Calls), "reproducir y pausar son órdenes distintas, no un alternador");
+        Check.Equal("play,pause,next,previous", string.Join(",", media.Calls), "cada orden multimedia es distinta, sin alternador");
         var undefined = false;
         try { executor.Execute((AllowedAction)99); } catch (ArgumentOutOfRangeException) { undefined = true; }
         Check.True(undefined, "un valor fuera de la enumeración se rechaza");

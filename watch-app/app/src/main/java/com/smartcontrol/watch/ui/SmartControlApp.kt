@@ -84,6 +84,7 @@ import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.CommandLog
 import com.smartcontrol.watch.CommandResult
 import com.smartcontrol.watch.ConnectionStatus
+import com.smartcontrol.watch.SCREEN_TAP_ID
 import com.smartcontrol.watch.gestureFor
 import com.smartcontrol.watch.link.CommandOutcome
 import com.smartcontrol.watch.link.LinkState
@@ -189,7 +190,7 @@ fun SmartControlApp(
                 gesturesAvailable = gesturesAvailable,
                 onSelectMode = { state = state.selectMode(it) },
                 onModePageChange = { onModePage = it },
-                onCommand = { command -> apply(state.sendCommand(command), gestureFor(command).id, 1.0) },
+                onCommand = { command -> apply(state.sendCommand(command), gestureFor(command)?.id ?: SCREEN_TAP_ID, 1.0) },
             )
         }
     }
@@ -458,12 +459,23 @@ private fun GesturePage(
             Text(mode.label, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.onSoft)
         }
         Spacer(Modifier.height(2.dp))
-        Text(
-            if (gesturesAvailable) "Realiza un gesto para controlar tu equipo" else "Este reloj no tiene sensor de giro",
-            fontSize = 12.sp,
-            color = SmartColors.TextMuted,
-            textAlign = TextAlign.Center,
-        )
+        if (mode == ControlMode.MULTIMEDIA) {
+            // Reproducir y pausar no tienen gesto: dos botones grandes, órdenes distintas (sin alternar).
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                listOf(Command.MEDIA_PLAY, Command.MEDIA_PAUSE).forEach { command ->
+                    val done = (lastResult as? CommandResult.Executed)?.command == command ||
+                        (lastResult as? CommandResult.Simulated)?.command == command
+                    PlaybackButton(command, flashKey = if (done) feedbackTick else null, onClick = { onCommand(command) })
+                }
+            }
+        } else {
+            Text(
+                if (gesturesAvailable) "Realiza un gesto para controlar tu equipo" else "Este reloj no tiene sensor de giro",
+                fontSize = 12.sp,
+                color = SmartColors.TextMuted,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             WristGesture.entries.forEach { gesture ->
@@ -537,6 +549,40 @@ private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, 
             Text(command.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = tone.onSoft, maxLines = 1)
             Text(gesture.label, fontSize = 12.sp, color = SmartColors.TextMuted, maxLines = 1)
         }
+    }
+}
+
+/** Botón redondo de reproducir o pausar; se ilumina cuando Windows lo confirma. */
+@Composable
+private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit) {
+    val tone = SmartColors.forCommand(command)
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(flashKey) {
+        if (flashKey != null) {
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(900, easing = FastOutSlowInEasing))
+        }
+    }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(44.dp)
+            .graphicsLayer {
+                val grow = 1f + 0.12f * flash.value
+                scaleX = grow
+                scaleY = grow
+            }
+            .clip(CircleShape)
+            .background(Brush.verticalGradient(listOf(tone.main, tone.dark)))
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics { contentDescription = command.label },
+    ) {
+        Icon(
+            if (command == Command.MEDIA_PLAY) SmartIcons.Play else SmartIcons.Pause,
+            contentDescription = null,
+            tint = tone.onMain,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 
@@ -782,6 +828,8 @@ private val Command.feedbackLabel: String
         Command.SLIDE_PREVIOUS -> "Diapositiva anterior"
         Command.MEDIA_PLAY -> "Reproducción"
         Command.MEDIA_PAUSE -> "Pausa"
+        Command.MEDIA_NEXT_TRACK -> "Siguiente canción"
+        Command.MEDIA_PREVIOUS_TRACK -> "Canción anterior"
     }
 
 @Composable

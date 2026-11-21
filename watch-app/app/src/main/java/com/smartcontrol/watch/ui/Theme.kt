@@ -84,6 +84,8 @@ object SmartColors {
         Command.SLIDE_PREVIOUS -> Indigo
         Command.MEDIA_PLAY -> Green
         Command.MEDIA_PAUSE -> Amber
+        Command.MEDIA_NEXT_TRACK -> Violet
+        Command.MEDIA_PREVIOUS_TRACK -> Indigo
     }
 }
 

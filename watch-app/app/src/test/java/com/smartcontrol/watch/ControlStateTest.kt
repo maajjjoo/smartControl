@@ -25,7 +25,10 @@ class ControlStateTest {
     @Test
     fun multimediaModeOffersOnlyMediaCommands() {
         val state = ControlState().selectMode(ControlMode.MULTIMEDIA)
-        assertEquals(listOf(Command.MEDIA_PLAY, Command.MEDIA_PAUSE), state.availableCommands)
+        assertEquals(
+            listOf(Command.MEDIA_PLAY, Command.MEDIA_PAUSE, Command.MEDIA_NEXT_TRACK, Command.MEDIA_PREVIOUS_TRACK),
+            state.availableCommands,
+        )
     }
 
     @Test
@@ -89,8 +92,8 @@ class ControlStateTest {
     fun gesturesMapToTheActiveModeCommands() {
         assertEquals(Command.SLIDE_NEXT, commandFor(ControlMode.PRESENTATION, WristGesture.TWIST_OUT))
         assertEquals(Command.SLIDE_PREVIOUS, commandFor(ControlMode.PRESENTATION, WristGesture.TWIST_IN))
-        assertEquals(Command.MEDIA_PLAY, commandFor(ControlMode.MULTIMEDIA, WristGesture.TWIST_OUT))
-        assertEquals(Command.MEDIA_PAUSE, commandFor(ControlMode.MULTIMEDIA, WristGesture.TWIST_IN))
+        assertEquals(Command.MEDIA_NEXT_TRACK, commandFor(ControlMode.MULTIMEDIA, WristGesture.TWIST_OUT))
+        assertEquals(Command.MEDIA_PREVIOUS_TRACK, commandFor(ControlMode.MULTIMEDIA, WristGesture.TWIST_IN))
         // Cada gesto produce siempre un comando de la lista blanca de su modo.
         for (mode in ControlMode.entries) for (gesture in WristGesture.entries) {
             assertEquals(mode, commandFor(mode, gesture).mode)
@@ -101,7 +104,7 @@ class ControlStateTest {
     fun recognizedGestureGoesThroughValidation() {
         val state = ControlState().selectMode(ControlMode.MULTIMEDIA)
             .onGesture(GestureEvent.Recognized(WristGesture.TWIST_IN, 0.95f))
-        assertEquals(CommandResult.Simulated(Command.MEDIA_PAUSE, 1), state.lastResult)
+        assertEquals(CommandResult.Simulated(Command.MEDIA_PREVIOUS_TRACK, 1), state.lastResult)
     }
 
     @Test
@@ -189,6 +192,15 @@ class ControlStateTest {
         for (mode in ControlMode.entries) for (gesture in WristGesture.entries) {
             assertEquals(gesture, gestureFor(commandFor(mode, gesture)))
         }
-        assertTrue(Command.entries.all { commandFor(it.mode, gestureFor(it)) == it })
+        assertTrue(Command.entries.all { command -> gestureFor(command)?.let { commandFor(command.mode, it) == command } ?: true })
+    }
+
+    @Test
+    fun playAndPauseAreScreenButtonsNotGestures() {
+        assertNull(gestureFor(Command.MEDIA_PLAY))
+        assertNull(gestureFor(Command.MEDIA_PAUSE))
+        val state = connected().selectMode(ControlMode.MULTIMEDIA)
+        assertEquals(PendingCommand(Command.MEDIA_PLAY, 1), state.sendCommand(Command.MEDIA_PLAY).pending)
+        assertEquals(PendingCommand(Command.MEDIA_PAUSE, 1), state.sendCommand(Command.MEDIA_PAUSE).pending)
     }
 }

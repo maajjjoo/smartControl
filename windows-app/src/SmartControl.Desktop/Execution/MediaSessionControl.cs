@@ -11,6 +11,8 @@ internal interface IMediaControl
 {
     void Play();
     void Pause();
+    void NextTrack();
+    void PreviousTrack();
 }
 
 /// <summary>
@@ -35,6 +37,8 @@ internal sealed class MediaSessionControl : IMediaControl
     private const int SourceAppSlot = 6;           // IGlobalSystemMediaTransportControlsSession.get_SourceAppUserModelId
     private const int TryPlaySlot = 10;            // IGlobalSystemMediaTransportControlsSession.TryPlayAsync
     private const int TryPauseSlot = 11;           // IGlobalSystemMediaTransportControlsSession.TryPauseAsync
+    private const int TrySkipNextSlot = 16;        // IGlobalSystemMediaTransportControlsSession.TrySkipNextAsync
+    private const int TrySkipPreviousSlot = 17;    // IGlobalSystemMediaTransportControlsSession.TrySkipPreviousAsync
     private const int AsyncStatusSlot = 7;         // IAsyncInfo.get_Status
     private const int AsyncCancelSlot = 9;         // IAsyncInfo.Cancel
     private const int GetResultsSlot = 8;          // IAsyncOperation<T>.GetResults
@@ -44,6 +48,10 @@ internal sealed class MediaSessionControl : IMediaControl
     public void Play() => Send(TryPlaySlot);
 
     public void Pause() => Send(TryPauseSlot);
+
+    public void NextTrack() => Send(TrySkipNextSlot);
+
+    public void PreviousTrack() => Send(TrySkipPreviousSlot);
 
     /// <summary>
     /// Solo lectura: identificador de la aplicación que tiene el control multimedia, o nulo si no

@@ -107,6 +107,8 @@ internal static class Icons
     public const string Next = "";
     public const string Play = "";
     public const string Pause = "";
+    public const string TrackNext = "";
+    public const string TrackPrevious = "";
     public const string Check = "";
     public const string Blocked = "";
     public const string Warning = "";

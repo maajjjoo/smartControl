@@ -60,6 +60,8 @@ public sealed class SimulatedCommandExecutor : ICommandExecutor
             AllowedAction.SlidePrevious => "Simulado: retroceder diapositiva",
             AllowedAction.MediaPlay => "Simulado: reproducir (acción explícita, no alternador)",
             AllowedAction.MediaPause => "Simulado: pausar (acción explícita, no alternador)",
+            AllowedAction.MediaNextTrack => "Simulado: siguiente canción",
+            AllowedAction.MediaPreviousTrack => "Simulado: canción anterior",
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
         lock (_lock) _history.Add(action);

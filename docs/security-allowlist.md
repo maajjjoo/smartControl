@@ -16,7 +16,7 @@ De acuerdo con **RF-15**, **RNF-06** y la **Sección 2.2** del SRS:
 
 ## 2. Catálogo Inicial de Acciones Permitidas (MVP)
 
-En la versión inicial del MVP solo se autorizan las siguientes **cuatro (4) acciones explícitas**, agrupadas según el modo de control activo:
+En el MVP solo se autorizan las siguientes **seis (6) acciones explícitas**, agrupadas según el modo de control activo (`MEDIA_NEXT_TRACK` y `MEDIA_PREVIOUS_TRACK` se añadieron el 2026-11-20 siguiendo la §5):
 
 | Código de Acción (`requestedAction`) | Modo Requerido (`activeMode`) | Descripción Funcional | Requisito SRS | Acción Interna en Windows (C# / .NET) |
 |---|---|---|---|---|
@@ -24,6 +24,8 @@ En la versión inicial del MVP solo se autorizan las siguientes **cuatro (4) acc
 | `SLIDE_PREVIOUS` | `PRESENTATION` | Retroceder a la diapositiva anterior | RF-07 | Envío de evento de tecla virtual predefinido para retroceder diapositiva (p. ej. `VK_LEFT` / `VK_PRIOR`) |
 | `MEDIA_PLAY` | `MULTIMEDIA` | Iniciar o reanudar la reproducción multimedia | RF-08 | Ejecución de acción explícita de reproducción (distinta de pausa). Alternativa preferida sujeta a validación de viabilidad: operación de reproducción sobre `GlobalSystemMediaTransportControlsSession` |
 | `MEDIA_PAUSE` | `MULTIMEDIA` | Pausar la reproducción multimedia activa | RF-08 | Ejecución de acción explícita de pausa (distinta de reproducción). Alternativa preferida sujeta a validación de viabilidad: operación de pausa sobre `GlobalSystemMediaTransportControlsSession` |
+| `MEDIA_NEXT_TRACK` | `MULTIMEDIA` | Pasar a la siguiente canción del reproductor activo | RF-08 (ampliación) | `TrySkipNextAsync` sobre `GlobalSystemMediaTransportControlsSession` |
+| `MEDIA_PREVIOUS_TRACK` | `MULTIMEDIA` | Volver a la canción anterior del reproductor activo | RF-08 (ampliación) | `TrySkipPreviousAsync` sobre `GlobalSystemMediaTransportControlsSession` |
 
 > **Nota sobre `MEDIA_PLAY` y `MEDIA_PAUSE`:** Ambas acciones deben ejecutar comportamientos explícitos y diferenciados (no un simple alternador o *toggle* ciego como `VK_MEDIA_PLAY_PAUSE`, el cual no distingue el estado actual). Se contempla como alternativa preferida el uso de las operaciones específicas de reproducción y pausa expuestas por `GlobalSystemMediaTransportControlsSession` en Windows, sujeto a comprobar su viabilidad técnica durante las pruebas correspondientes.
 
@@ -36,12 +38,12 @@ En la versión inicial del MVP solo se autorizan las siguientes **cuatro (4) acc
 El validador de seguridad en Windows (`ActionAllowlistValidator`) aplicará las siguientes reglas de forma obligatoria antes de invocar al ejecutor del sistema operativo:
 
 1. **Coincidencia exacta de identificador:**
-   - El campo `requestedAction` debe coincidir exactamente (sensible a mayúsculas/minúsculas) con uno de los cuatro valores enumerados: `SLIDE_NEXT`, `SLIDE_PREVIOUS`, `MEDIA_PLAY` o `MEDIA_PAUSE`.
+   - El campo `requestedAction` debe coincidir exactamente (sensible a mayúsculas/minúsculas) con uno de los seis valores enumerados: `SLIDE_NEXT`, `SLIDE_PREVIOUS`, `MEDIA_PLAY`, `MEDIA_PAUSE`, `MEDIA_NEXT_TRACK` o `MEDIA_PREVIOUS_TRACK`.
    - Cualquier otro valor (vacío, nulo, desconocido o con caracteres adicionales) será rechazado inmediatamente con `REJECTED_NOT_ALLOWED`.
 
 2. **Coherencia estricta con el Modo Activo (RF-04, RF-05):**
    - Si `activeMode` es `PRESENTATION`, solo se permiten `SLIDE_NEXT` y `SLIDE_PREVIOUS`.
-   - Si `activeMode` es `MULTIMEDIA`, solo se permiten `MEDIA_PLAY` y `MEDIA_PAUSE`.
+   - Si `activeMode` es `MULTIMEDIA`, solo se permiten `MEDIA_PLAY`, `MEDIA_PAUSE`, `MEDIA_NEXT_TRACK` y `MEDIA_PREVIOUS_TRACK`.
    - Si un mensaje solicita `SLIDE_NEXT` mientras el modo activo en el mensaje o en el receptor es `MULTIMEDIA` (o viceversa), la acción será **rechazada** sin ejecutarse.
 
 3. **Aislamiento del Ejecutor (RF-18, RNF-06):**
