@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -66,6 +67,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +84,9 @@ import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.CommandLog
 import com.smartcontrol.watch.CommandResult
 import com.smartcontrol.watch.ConnectionStatus
+import com.smartcontrol.watch.gestureFor
+import com.smartcontrol.watch.link.CommandOutcome
+import com.smartcontrol.watch.link.LinkState
 import com.smartcontrol.watch.ControlMode
 import com.smartcontrol.watch.ControlState
 import com.smartcontrol.watch.commandFor
@@ -89,6 +95,8 @@ import com.smartcontrol.watch.gesture.WristGesture
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
@@ -110,48 +118,78 @@ private const val TOUCH_GUARD_MILLIS = 400L
  * La interacción principal son los gestos de muñeca ([gestureEvents], del giroscopio). Tocar la
  * guía de gestos envía el mismo comando, solo como alternativa para pruebas.
  *
- * [simulationEnabled] se mantiene en la lógica para desarrollo y pruebas, pero no se muestra:
- * la interfaz solo indica si el comando se aceptó o no (ver MainActivity).
+ * [linkState] es la conexión real con Windows y [sendToWindows] envía un comando y devuelve la
+ * respuesta de Windows. [simulationEnabled] solo sirve para pruebas sin Windows y no se muestra.
  */
 @Composable
 fun SmartControlApp(
     simulationEnabled: Boolean = true,
     gestureEvents: Flow<GestureEvent> = emptyFlow(),
     gesturesAvailable: Boolean = false,
+    linkState: StateFlow<LinkState> = MutableStateFlow(LinkState.Searching),
+    sendToWindows: suspend (Command, ControlMode, String, Double) -> CommandOutcome = { _, _, _, _ -> CommandOutcome.NotConnected },
 ) {
     var state by remember { mutableStateOf(ControlState(simulationEnabled = simulationEnabled)) }
+    val link by linkState.collectAsState()
+    val scope = rememberCoroutineScope()
     // Cambia en cada acción para volver a mostrar la confirmación aunque se repita el comando.
     var feedbackTick by remember { mutableIntStateOf(0) }
     // Los gestos solo cuentan en una pantalla de modo, nunca en Inicio ni en Ayuda.
     var onModePage by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
 
-    fun apply(next: ControlState) {
+    /** Muestra el resultado: ventana de confirmación, vibración y registro. */
+    fun show(next: ControlState) {
         state = next
         feedbackTick++
         CommandLog.record(state)
-        haptics.performHapticFeedback(
-            if (state.lastResult is CommandResult.Simulated) {
-                HapticFeedbackType.Confirm
-            } else {
-                HapticFeedbackType.Reject
-            },
-        )
+        val success = state.lastResult is CommandResult.Simulated || state.lastResult is CommandResult.Executed
+        haptics.performHapticFeedback(if (success) HapticFeedbackType.Confirm else HapticFeedbackType.Reject)
+    }
+
+    /**
+     * Aplica el resultado de validar un gesto o un toque. Si el comando hay que enviarlo a Windows,
+     * el resultado se muestra cuando llega su respuesta.
+     */
+    fun apply(next: ControlState, gestureId: String, confidence: Double) {
+        val sent = next.pending
+        when {
+            sent != null && sent != state.pending -> {
+                state = next
+                scope.launch {
+                    val outcome = sendToWindows(sent.command, next.mode, gestureId, confidence)
+                    show(state.complete(sent.sequence, outcome))
+                }
+            }
+            // Ya hay un comando esperando respuesta: el nuevo se ignora para no encadenar acciones.
+            sent != null -> Unit
+            else -> show(next)
+        }
+    }
+
+    LaunchedEffect(link) {
+        state = state.setConnection(if (link is LinkState.Connected) ConnectionStatus.CONNECTED else ConnectionStatus.DISCONNECTED)
     }
 
     LaunchedEffect(gestureEvents) {
-        gestureEvents.collect { event -> if (onModePage) apply(state.onGesture(event)) }
+        gestureEvents.collect { event ->
+            if (!onModePage) return@collect
+            // Solo un gesto reconocido genera un comando; los demás no llegan a enviarse.
+            val recognized = event as? GestureEvent.Recognized
+            apply(state.onGesture(event), recognized?.gesture?.id ?: "", recognized?.confidence?.toDouble() ?: 0.0)
+        }
     }
 
     SmartControlTheme {
         AppScaffold {
             SmartControlScreen(
                 state = state,
+                link = link,
                 feedbackTick = feedbackTick,
                 gesturesAvailable = gesturesAvailable,
                 onSelectMode = { state = state.selectMode(it) },
                 onModePageChange = { onModePage = it },
-                onCommand = { command -> apply(state.sendCommand(command)) },
+                onCommand = { command -> apply(state.sendCommand(command), gestureFor(command).id, 1.0) },
             )
         }
     }
@@ -160,6 +198,7 @@ fun SmartControlApp(
 @Composable
 fun SmartControlScreen(
     state: ControlState,
+    link: LinkState,
     feedbackTick: Int,
     gesturesAvailable: Boolean,
     onSelectMode: (ControlMode) -> Unit,
@@ -172,6 +211,12 @@ fun SmartControlScreen(
     val focusRequester = remember { FocusRequester() }
     var touchGuardUntil by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    // El código de vinculación se muestra en Inicio: si aparece, se vuelve allí.
+    val pairing = link is LinkState.Pairing
+    LaunchedEffect(pairing) {
+        if (pairing) pagerState.animateScrollToPage(Page.HOME.ordinal)
+    }
 
     // Al detenerse en una pantalla de modo, ese modo pasa a ser el activo y se escuchan gestos.
     LaunchedEffect(pagerState) {
@@ -210,11 +255,11 @@ fun SmartControlScreen(
                     .pageTransition(pagerState, index),
             ) {
                 when (val page = Page.entries[index]) {
-                    Page.HOME -> HomePage(state.connection)
+                    Page.HOME -> HomePage(link)
                     Page.HELP -> HelpPage()
                     else -> GesturePage(
                         mode = page.mode!!,
-                        connection = state.connection,
+                        link = link,
                         gesturesAvailable = gesturesAvailable,
                         lastResult = state.lastResult,
                         feedbackTick = feedbackTick,
@@ -264,10 +309,25 @@ private fun Modifier.pageTransition(pagerState: PagerState, page: Int): Modifier
     translationY = signed * size.height * 0.25f
 }
 
+/** Textos de la conexión para la pantalla de Inicio. */
+private data class LinkText(val title: String, val detail: String, val short: String, val connected: Boolean)
+
+private fun linkText(link: LinkState): LinkText = when (link) {
+    is LinkState.Connected -> LinkText("Conectado", link.pcName, "Conectado", true)
+    LinkState.Searching -> LinkText("Buscando equipo", "Abre SmartControl en Windows", "Buscando", false)
+    LinkState.NoWifi -> LinkText("Sin Wi-Fi", "Conecta el reloj al Wi-Fi", "Sin Wi-Fi", false)
+    is LinkState.Pairing -> LinkText("Vincular", "Pulsa Vincular en ${link.pcName}", "Vinculando", false)
+    is LinkState.PairingRefused -> LinkText("No vinculado", "Se volverá a intentar", "No vinculado", false)
+}
+
 @Composable
-private fun HomePage(connection: ConnectionStatus) {
-    val connected = connection == ConnectionStatus.CONNECTED
-    val tone = if (connected) SmartColors.Connected else SmartColors.Disconnected
+private fun HomePage(link: LinkState) {
+    val text = linkText(link)
+    val tone = if (text.connected) SmartColors.Connected else SmartColors.Disconnected
+    if (link is LinkState.Pairing) {
+        PairingCode(link)
+        return
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
         BasicText(
             text = "SmartControl",
@@ -281,14 +341,44 @@ private fun HomePage(connection: ConnectionStatus) {
         Spacer(Modifier.height(6.dp))
         StatusRing(tone)
         Spacer(Modifier.height(6.dp))
-        Text(connection.label, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.main)
+        Text(text.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.main)
         Text(
-            if (connected) "Equipo Windows" else "Equipo Windows sin vincular",
+            text.detail,
             fontSize = 12.sp,
             color = SmartColors.TextMuted,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
         )
         Spacer(Modifier.height(10.dp))
         SwipeHint()
+    }
+}
+
+/**
+ * Vinculación: el mismo código aparece en Windows. Basta con comprobar que coincide y pulsar
+ * «Vincular» allí; en el reloj no hay que tocar nada.
+ */
+@Composable
+private fun PairingCode(link: LinkState.Pairing) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 26.dp)) {
+        Text("Código de vinculación", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SmartColors.TextMuted)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            link.code,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 4.sp,
+            color = SmartColors.Brand.onSoft,
+            modifier = Modifier.semantics { contentDescription = "Código ${link.code.toCharArray().joinToString(" ")}" },
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Comprueba que ${link.pcName} muestra el mismo y pulsa Vincular allí",
+            fontSize = 12.sp,
+            color = SmartColors.Text,
+            textAlign = TextAlign.Center,
+            maxLines = 3,
+        )
     }
 }
 
@@ -354,7 +444,7 @@ private fun SwipeHint() {
 @Composable
 private fun GesturePage(
     mode: ControlMode,
-    connection: ConnectionStatus,
+    link: LinkState,
     gesturesAvailable: Boolean,
     lastResult: CommandResult?,
     feedbackTick: Int,
@@ -378,7 +468,8 @@ private fun GesturePage(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             WristGesture.entries.forEach { gesture ->
                 val command = commandFor(mode, gesture)
-                val justDone = (lastResult as? CommandResult.Simulated)?.command == command
+                val justDone = (lastResult as? CommandResult.Simulated)?.command == command ||
+                    (lastResult as? CommandResult.Executed)?.command == command
                 GestureRow(
                     gesture = gesture,
                     command = command,
@@ -388,7 +479,7 @@ private fun GesturePage(
             }
         }
         Spacer(Modifier.height(8.dp))
-        ConnectionChip(connection)
+        ConnectionChip(link)
     }
 }
 
@@ -499,8 +590,9 @@ private fun HelpStep(icon: ImageVector, tone: Tone, text: String) {
 }
 
 @Composable
-private fun ConnectionChip(connection: ConnectionStatus) {
-    val tone = if (connection == ConnectionStatus.CONNECTED) SmartColors.Connected else SmartColors.Disconnected
+private fun ConnectionChip(link: LinkState) {
+    val text = linkText(link)
+    val tone = if (text.connected) SmartColors.Connected else SmartColors.Disconnected
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -510,7 +602,7 @@ private fun ConnectionChip(connection: ConnectionStatus) {
     ) {
         BreathingDot(tone.main)
         Spacer(Modifier.width(5.dp))
-        Text(connection.label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = tone.main)
+        Text(text.short, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = tone.main)
     }
 }
 
@@ -557,9 +649,8 @@ private fun PageIndicator(pagerState: PagerState, modifier: Modifier = Modifier)
 
 /**
  * Ventana de confirmación que aparece sobre la pantalla tras cada gesto y se cierra sola
- * (o al tocarla). Verde si el comando se aceptó, roja y con temblor si no se pudo realizar o si
- * el gesto no se reconoció.
- * No afirma que Windows haya ejecutado nada; los detalles técnicos van a [CommandLog].
+ * (o al tocarla). Verde si Windows lo hizo, roja y con temblor si no se pudo realizar o si el
+ * gesto no se reconoció. Los detalles técnicos van a [CommandLog].
  */
 @Composable
 private fun FeedbackOverlay(result: CommandResult?, tick: Int, onHidden: () -> Unit) {
@@ -574,7 +665,7 @@ private fun FeedbackOverlay(result: CommandResult?, tick: Int, onHidden: () -> U
             pop.snapTo(0.3f)
             pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow))
         }
-        if (result !is CommandResult.Simulated) {
+        if (result !is CommandResult.Simulated && result !is CommandResult.Executed) {
             launch {
                 shake.animateTo(
                     targetValue = 0f,
@@ -650,7 +741,19 @@ private data class ResultStyle(
 
 private fun resultStyle(result: CommandResult?): ResultStyle? = when (result) {
     null -> null
-    // "Aceptado" = pasó la validación; nunca se dice que Windows lo haya ejecutado.
+    is CommandResult.Executed -> ResultStyle(
+        icon = SmartIcons.Check,
+        tone = SmartColors.Success,
+        title = "Hecho",
+        detail = result.command.feedbackLabel,
+    )
+    is CommandResult.Failed -> ResultStyle(
+        icon = SmartIcons.Close,
+        tone = SmartColors.Rejected,
+        title = "No se pudo realizar la acción",
+        detail = result.failure.label,
+    )
+    // Solo en pruebas sin Windows: pasó la validación, pero no se envió a ningún equipo.
     is CommandResult.Simulated -> ResultStyle(
         icon = SmartIcons.Check,
         tone = SmartColors.Success,
@@ -718,6 +821,7 @@ private fun PresentationPreview() {
     SmartControlTheme {
         SmartControlScreen(
             state = ControlState(),
+            link = LinkState.Connected("PORTÁTIL"),
             feedbackTick = 0,
             gesturesAvailable = true,
             onSelectMode = {},

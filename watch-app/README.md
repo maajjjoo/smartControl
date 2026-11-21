@@ -8,7 +8,7 @@ Componente para **Wear OS** previsto en **Kotlin**, encargado de:
 
 ## Estado actual (etapa 2: control por gestos de muñeca)
 
-Proyecto Android de **Wear OS** en Kotlin con **Compose for Wear OS (Material 3)**, interfaz en **modo claro**. La interacción principal son **gestos de muñeca** detectados con el giroscopio del reloj. Aún **no** hay conexión con Windows (ni Bluetooth ni red): los comandos aceptados se simulan dentro del reloj y nada se envía.
+Proyecto Android de **Wear OS** en Kotlin con **Compose for Wear OS (Material 3)**, interfaz en **modo claro**. La interacción principal son **gestos de muñeca** detectados con el giroscopio del reloj. Se **conecta solo** con SmartControl en Windows por la red Wi-Fi: busca el equipo, se vincula la primera vez con un código que aparece en las dos pantallas (se pulsa «Vincular» en Windows) y después se reconecta sin preguntar. Cada gesto se envía y la pantalla muestra la respuesta real de Windows («Hecho» o el motivo).
 
 | Archivo | Contenido |
 |---|---|
@@ -17,6 +17,10 @@ Proyecto Android de **Wear OS** en Kotlin con **Compose for Wear OS (Material 3)
 | `gesture/SyntheticGestures.kt` | Series sintéticas de cada movimiento, para pruebas unitarias y para el emulador. |
 | `ControlState.kt` | Modos, lista blanca, validación, simulación y traducción gesto → comando según el modo. Kotlin puro. |
 | `CommandLog.kt` | Registro de diagnóstico solo en depuración (`adb logcat -s SmartControl`). |
+| `link/WindowsLink.kt` | Conexión automática: pide el Wi-Fi, busca el equipo por UDP, se conecta, mantiene el latido y se reconecta. Diagnóstico: `adb logcat -s SmartControlLink`. |
+| `link/LinkSession.kt` | Diálogo con Windows: saludo, vinculación, comandos con su respuesta y hora de Windows. Kotlin puro. |
+| `link/LinkMessages.kt`, `link/Json.kt` | Mensajes del protocolo y JSON mínimo, sin bibliotecas externas. |
+| `link/PreferencesPairingStorage.kt` | Identificador del reloj y clave de vinculación, en el almacenamiento privado de la app. |
 | `ui/SmartControlApp.kt` | Pantallas verticales (Inicio, Presentación, Multimedia, Ayuda) y ventana de confirmación. |
 | `ui/Theme.kt` / `ui/SmartIcons.kt` | Único archivo de colores / iconos propios de trazo redondeado. |
 
@@ -61,10 +65,12 @@ Tras cada gesto aparece una ventana que se cierra sola: **Comando aceptado** (ve
 - Limitaciones conocidas de las pruebas: las series sintéticas tienen forma de escalón, sin ruido; un giro de ida y vuelta muy rápido (ciclo de ~200 ms) puede rechazarse como sacudida según dónde caigan las muestras; y hace falta un pico de unos 4,5 rad/s para reconocerlo de forma fiable.
 - **Pendiente**: validar en un reloj real los umbrales, el tiempo de reasentamiento de 3 s, el comportamiento con la pantalla apagada y el sentido "hacia fuera / hacia dentro" (muñeca izquierda y derecha, posición de la corona), medir la tasa de aciertos (≥ 90 %, RNF-02) y de falsos positivos con movimientos cotidianos (RNF-03), y decidir si se añade aprendizaje automático (ADR-03). Para calibrar: `adb shell setprop log.tag.SmartControlSensor VERBOSE` registra cada muestra del giroscopio (solo en depuración).
 
-**Simulación (solo lógica interna).** Los comandos aceptados se simulan en el reloj. La interfaz no muestra etiquetas de simulación. En compilaciones de **depuración** se puede desactivar al abrir la app para probar el rechazo sin conexión (en release se ignora):
+**Conexión.** El reloj y el PC tienen que estar en la **misma red Wi-Fi**. Si el reloj solo tiene conexión por el teléfono (Bluetooth), la pantalla de Inicio dice «Sin Wi-Fi». En el emulador hay que conectar su Wi-Fi virtual una vez: `adb shell cmd wifi connect-network AndroidWifi open`; el PC se encuentra en `10.0.2.2`.
+
+**Simulación (solo para pruebas sin Windows).** Sin conexión, los comandos se rechazan («Windows no está conectado»). En compilaciones de **depuración** se puede activar una simulación al abrir la app (en release se ignora):
 
 ```powershell
-adb shell am start -S -n com.smartcontrol.watch/.MainActivity --ez simulation false
+adb shell am start -S -n com.smartcontrol.watch/.MainActivity --ez simulation true
 ```
 
 Versiones: AGP 9.4.1, Kotlin 2.2.10, Gradle 9.6.0, compileSdk/targetSdk 37, minSdk 30 (Wear OS 3+), Wear Compose 1.5.0.

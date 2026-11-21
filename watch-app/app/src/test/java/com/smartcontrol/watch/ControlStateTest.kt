@@ -4,9 +4,11 @@ import com.smartcontrol.watch.gesture.GestureEvent
 import com.smartcontrol.watch.gesture.MIN_GESTURE_CONFIDENCE
 import com.smartcontrol.watch.gesture.UnclearReason
 import com.smartcontrol.watch.gesture.WristGesture
+import com.smartcontrol.watch.link.CommandOutcome
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ControlStateTest {
@@ -133,5 +135,60 @@ class ControlStateTest {
     @Test
     fun thresholdIsTheProtocolValue() {
         assertEquals(0.80f, MIN_GESTURE_CONFIDENCE, 0f)
+    }
+
+    private fun connected() = ControlState(simulationEnabled = false).setConnection(ConnectionStatus.CONNECTED)
+
+    @Test
+    fun withConnectionTheCommandWaitsForWindows() {
+        val state = connected().sendCommand(Command.SLIDE_NEXT)
+        assertEquals(PendingCommand(Command.SLIDE_NEXT, 1), state.pending)
+        assertNull("no se muestra nada hasta que responda Windows", state.lastResult)
+    }
+
+    @Test
+    fun windowsAnswerBecomesTheResult() {
+        val sent = connected().sendCommand(Command.SLIDE_PREVIOUS)
+        val done = sent.complete(1, CommandOutcome.Executed)
+        assertEquals(CommandResult.Executed(Command.SLIDE_PREVIOUS, 1), done.lastResult)
+        assertNull(done.pending)
+
+        val failed = connected().selectMode(ControlMode.MULTIMEDIA).sendCommand(Command.MEDIA_PLAY)
+            .complete(1, CommandOutcome.Failed("NO_MEDIA_SESSION"))
+        val result = failed.lastResult as CommandResult.Failed
+        assertEquals("Abre la música en el equipo", result.failure.label)
+        assertEquals("NO_MEDIA_SESSION", result.failure.code)
+
+        val silent = connected().sendCommand(Command.SLIDE_NEXT).complete(1, CommandOutcome.NoResponse)
+        assertEquals("Windows no respondió", (silent.lastResult as CommandResult.Failed).failure.label)
+    }
+
+    @Test
+    fun oneCommandAtATime() {
+        val sent = connected().sendCommand(Command.SLIDE_NEXT)
+        assertSame("mientras espera, otro gesto no envía nada", sent, sent.sendCommand(Command.SLIDE_PREVIOUS))
+        assertSame("una respuesta de otro comando se ignora", sent, sent.complete(7, CommandOutcome.Executed))
+    }
+
+    @Test
+    fun modeIsStillCheckedBeforeSending() {
+        val state = connected().sendCommand(Command.MEDIA_PLAY)
+        assertNull(state.pending)
+        assertEquals(CommandResult.Rejected(Command.MEDIA_PLAY, RejectReason.WRONG_MODE), state.lastResult)
+    }
+
+    @Test
+    fun withoutConnectionNothingIsSent() {
+        val state = ControlState(simulationEnabled = false).sendCommand(Command.SLIDE_NEXT)
+        assertNull(state.pending)
+        assertEquals(CommandResult.Rejected(Command.SLIDE_NEXT, RejectReason.NO_CONNECTION), state.lastResult)
+    }
+
+    @Test
+    fun tappedCommandsMapBackToTheirGesture() {
+        for (mode in ControlMode.entries) for (gesture in WristGesture.entries) {
+            assertEquals(gesture, gestureFor(commandFor(mode, gesture)))
+        }
+        assertTrue(Command.entries.all { commandFor(it.mode, gestureFor(it)) == it })
     }
 }
