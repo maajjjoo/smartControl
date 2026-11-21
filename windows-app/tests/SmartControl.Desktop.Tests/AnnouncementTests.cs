@@ -56,7 +56,7 @@ internal static class AnnouncementTests
 
             receiver.Start();
             PumpUntil(() => heard.Count >= 1);
-            Check.Equal("Recibiendo comandos. Por ahora solo desde este equipo: el reloj todavía no puede conectarse.", heard.LastOrDefault());
+            Check.Equal("Esperando al reloj. Abre SmartControl en el reloj. Tiene que estar en la misma red Wi-Fi que este equipo.", heard.LastOrDefault());
 
             var request = new CommandRequest
             {
@@ -69,7 +69,7 @@ internal static class AnnouncementTests
             var send = Task.Run(() => LoopbackTestClient.SendAsync(receiver.Port, request.ToUtf8Json(), TimeSpan.FromSeconds(3)));
             PumpUntil(() => send.IsCompleted && heard.Contains("Hecho: Siguiente diapositiva."));
             Check.True(heard.Contains("Hecho: Siguiente diapositiva."), $"falta la respuesta; se oyó: {string.Join(" | ", heard)}");
-            Check.Equal(1, heard.Count(h => h.StartsWith("Recibiendo comandos", StringComparison.Ordinal)),
+            Check.Equal(1, heard.Count(h => h.StartsWith("Esperando al reloj", StringComparison.Ordinal)),
                 "abrir y cerrar la conexión de prueba no debe repetir el estado");
 
             var stop = Task.Run(receiver.StopAsync);

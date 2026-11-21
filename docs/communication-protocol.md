@@ -70,7 +70,7 @@ Enviado cuando un gesto ha sido reconocido y asociado a una acción según el mo
 | `WRIST_TWIST_OUT` | Giro rápido de la muñeca "hacia fuera" (ωx > 0) | `SLIDE_NEXT` | `MEDIA_PLAY` |
 | `WRIST_TWIST_IN` | Giro rápido de la muñeca "hacia dentro" (ωx < 0) | `SLIDE_PREVIOUS` | `MEDIA_PAUSE` |
 
-El sentido "hacia fuera / hacia dentro" está pendiente de validar en un reloj real (depende de la muñeca y de la posición de la corona). En el reloj, `confidence` es una puntuación heurística en [0, 1] (intensidad del pico × dominancia del eje), no una probabilidad calibrada; el reloj no genera comandos por debajo de 0,80. Todavía no se envía ningún mensaje: no hay transporte.
+El sentido "hacia fuera / hacia dentro" está pendiente de validar en un reloj real (depende de la muñeca y de la posición de la corona). En el reloj, `confidence` es una puntuación heurística en [0, 1] (intensidad del pico × dominancia del eje), no una probabilidad calibrada; el reloj no genera comandos por debajo de 0,80. Desde el 2026-11-20 el reloj envía estos mensajes a Windows por Wi-Fi local (TCP, ver §3.4).
 
 ### 3.2. Mensaje de Respuesta / Confirmación (`COMMAND_RESPONSE`)
 Enviado desde Windows hacia el smartwatch para confirmar la ejecución o informar el motivo de rechazo (RF-09, RF-10, RF-IA-06):
@@ -123,10 +123,16 @@ En caso de que la evaluación técnica de la Fase 2 determine ejecutar el modelo
 }
 ```
 
-### 3.4. Mensajes de Control de Conexión (`HEARTBEAT` / `HANDSHAKE`)
-Para detectar caídas de conexión (RF-16) y permitir la reconexión sin reiniciar las aplicaciones (RF-17, RNF-15):
-- `HANDSHAKE_INIT` / `HANDSHAKE_ACK`: Vinculación inicial y verificación de versión del protocolo.
-- `PING` / `PONG`: Comprobación periódica de disponibilidad del enlace.
+### 3.4. Mensajes de Control de Conexión (implementados el 2026-11-20)
+Para que la conexión sea automática (RF-16, RF-17, RNF-15) sin que el usuario escriba direcciones. Canal: **Wi-Fi local**, JSON por líneas sobre TCP en el puerto 47800 (el mismo que `COMMAND_REQUEST`). Misma cabecera que §3.1 y campos exactos; los desconocidos se rechazan.
+
+1. **Búsqueda (UDP 47801).** El reloj difunde el texto exacto `SMARTCONTROL_DISCOVER/1`. Cada Windows con SmartControl responde solo a quien preguntó: `{"service":"smartcontrol","protocolVersion":"1.0-draft","pcName":…,"pcId":…,"port":47800}`. El reloj prefiere el equipo con el que ya está vinculado (`pcId`). En el emulador también pregunta a `10.0.2.2`.
+2. **Vinculación (`PAIR_REQUEST`, solo la primera vez).** Cabecera sin `sessionToken`, `payload: {deviceName}`. Windows responde `PAIR_PENDING {code, pcName}` con un código aleatorio de 4 cifras, que aparece en las dos pantallas, y espera hasta 60 s a que la persona pulse «Vincular» en Windows. Entonces responde `PAIR_ACCEPTED {sessionToken, pcName, serverTimeUtc}` con una clave aleatoria de 256 bits. Si se rechaza o caduca, responde `PAIR_REJECTED {reasonCode}` (`USER_REJECTED`, `PAIRING_TIMEOUT`, `PAIRING_BUSY`). Solo se atiende una solicitud a la vez.
+3. **Saludo (`HELLO`, en cada conexión).** Con `deviceId` y `sessionToken`. Windows responde `HELLO_ACK {pcName, serverTimeUtc}` o `HELLO_REJECTED {reasonCode}` y cierra; si la clave ya no vale (el reloj se olvidó en Windows), el reloj borra la suya y vuelve a pedir la vinculación.
+4. **Latido (`PING` → `PONG {serverTimeUtc}`).** Cada 8 s, solo tras el saludo. Si Windows calla 20 s o se corta la conexión, el reloj vuelve a buscar y se reconecta solo.
+5. **Hora.** El reloj fecha los comandos con la hora de Windows (`serverTimeUtc`), así una diferencia de hora entre los dos aparatos no hace que se rechacen por antiguos.
+
+Seguridad y límites: sin vincular no se acepta ningún comando; las claves se guardan cifradas con DPAPI en Windows y en el almacenamiento privado de la app en el reloj; «Olvidar» en Windows las invalida en el acto. El canal **no está cifrado** (sin TLS): alguien en la misma red podría leer los mensajes o suplantar una conexión ya abierta. Es aceptable para el MVP en una red de confianza y queda como mejora pendiente.
 
 ---
 

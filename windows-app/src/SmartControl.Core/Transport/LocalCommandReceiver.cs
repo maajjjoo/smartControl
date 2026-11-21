@@ -4,10 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SmartControl.Core.Execution;
 using SmartControl.Core.Logging;
+using SmartControl.Core.Pairing;
 using SmartControl.Core.Protocol;
 
 namespace SmartControl.Core.Transport;
@@ -33,12 +36,32 @@ public sealed class CommandProcessedEventArgs : EventArgs
     public DateTimeOffset ReceivedAt { get; }
 }
 
+/// <summary>Dónde escucha el receptor y cómo se presenta a los relojes.</summary>
+public sealed record ReceiverOptions
+{
+    /// <summary>
+    /// 127.0.0.1 por defecto (solo este equipo). La aplicación usa <see cref="IPAddress.Any"/>
+    /// para que el reloj llegue por la red Wi-Fi; aun así, solo un reloj vinculado puede enviar
+    /// comandos.
+    /// </summary>
+    public IPAddress ListenAddress { get; init; } = IPAddress.Loopback;
+
+    /// <summary>Nombre del equipo que ve el reloj.</summary>
+    public string PcName { get; init; } = Environment.MachineName;
+
+    /// <summary>Identificador estable de este equipo, para que el reloj reconozca a su PC.</summary>
+    public string PcId { get; init; } = "smartcontrol-pc";
+
+    /// <summary>Puerto UDP en el que se responde a la búsqueda del reloj; nulo para no responder.</summary>
+    public int? DiscoveryPort { get; init; }
+}
+
 /// <summary>
-/// Receptor local de comandos de prueba (versión C# de poc/local-receiver).
-/// Escucha EXCLUSIVAMENTE en 127.0.0.1 y recibe mensajes JSON delimitados por salto
-/// de línea. Cada mensaje se valida y, si es aceptable, se entrega al ejecutor como
-/// <see cref="AllowedAction"/>. No sabe nada de la interfaz gráfica.
-/// Una prueba en loopback no demuestra la comunicación entre dispositivos.
+/// Receptor de comandos. Recibe mensajes JSON delimitados por salto de línea. Cada
+/// COMMAND_REQUEST se valida y, si es aceptable, se entrega al ejecutor como
+/// <see cref="AllowedAction"/>. Si tiene un <see cref="PairingCoordinator"/>, también atiende la
+/// vinculación (PAIR_REQUEST), el saludo de un reloj vinculado (HELLO) y el latido (PING).
+/// No sabe nada de la interfaz gráfica.
 /// </summary>
 public sealed class LocalCommandReceiver : IAsyncDisposable
 {
@@ -53,6 +76,10 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
     private readonly int _requestedPort;
     private readonly TimeSpan _idleTimeout;
     private readonly ConcurrentDictionary<int, Task> _clients = new();
+    private readonly ConcurrentDictionary<int, string> _watches = new();
+    private readonly PairingCoordinator? _pairing;
+    private readonly ReceiverOptions _options;
+    private DiscoveryResponder? _discovery;
     private readonly object _stateLock = new();
 
     private TcpListener? _listener;
@@ -66,7 +93,9 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         ICommandExecutor executor,
         IEventLog log,
         int port = DefaultPort,
-        TimeSpan? idleTimeout = null)
+        TimeSpan? idleTimeout = null,
+        PairingCoordinator? pairing = null,
+        ReceiverOptions? options = null)
     {
         if (port < 0 || port > IPEndPoint.MaxPort)
             throw new ArgumentOutOfRangeException(nameof(port));
@@ -75,6 +104,8 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         _log = log;
         _requestedPort = port;
         _idleTimeout = idleTimeout ?? TimeSpan.FromSeconds(30);
+        _pairing = pairing;
+        _options = options ?? new ReceiverOptions();
     }
 
     /// <summary>Se dispara en un hilo del receptor, no en el de la interfaz.</summary>
@@ -93,6 +124,12 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
 
     public int ConnectedClients => _clients.Count;
 
+    /// <summary>Nombres de los relojes vinculados con una conexión abierta ahora mismo.</summary>
+    public string[] ConnectedWatches => _watches.Values.Distinct().OrderBy(n => n, StringComparer.CurrentCulture).ToArray();
+
+    /// <summary>Puerto UDP de la búsqueda, o 0 si no se responde a la búsqueda.</summary>
+    public int DiscoveryPort => _discovery?.Port ?? 0;
+
     /// <summary>Motivo del último fallo al iniciar, si lo hubo.</summary>
     public string? LastError { get; private set; }
 
@@ -104,7 +141,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
             if (_state == ReceiverState.Running)
                 return;
 
-            var listener = new TcpListener(IPAddress.Loopback, _requestedPort);
+            var listener = new TcpListener(_options.ListenAddress, _requestedPort);
             listener.ExclusiveAddressUse = true;
             try
             {
@@ -123,12 +160,26 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
 
             _listener = listener;
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            if (_options.DiscoveryPort is { } discoveryPort)
+            {
+                // Sin búsqueda el reloj no encuentra el equipo, pero los comandos siguen funcionando.
+                var discovery = new DiscoveryResponder(discoveryPort, _options.ListenAddress, () => Port, _options.PcName, _options.PcId, _log);
+                try
+                {
+                    discovery.Start();
+                    _discovery = discovery;
+                }
+                catch (SocketException ex)
+                {
+                    _log.Write(EventLevel.Warning, "discovery", $"start_failed port={discoveryPort} error={ex.SocketErrorCode}");
+                }
+            }
             _cts = new CancellationTokenSource();
             _state = ReceiverState.Running;
             LastError = null;
             _acceptLoop = AcceptLoopAsync(listener, _cts.Token);
         }
-        _log.Write(EventLevel.Info, "receiver", $"started endpoint=127.0.0.1:{Port}");
+        _log.Write(EventLevel.Info, "receiver", $"started endpoint={_options.ListenAddress}:{Port}");
         RaiseStatusChanged();
     }
 
@@ -143,6 +194,12 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
             _cts!.Cancel();
             _listener!.Stop();
             acceptLoop = _acceptLoop;
+        }
+
+        if (_discovery is { } discovery)
+        {
+            await discovery.StopAsync().ConfigureAwait(false);
+            _discovery = null;
         }
 
         if (acceptLoop is not null)
@@ -202,7 +259,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         try
         {
             using (client)
-                await HandleClientAsync(client, ct).ConfigureAwait(false);
+                await HandleClientAsync(id, client, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or OperationCanceledException)
         {
@@ -211,11 +268,12 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         finally
         {
             _clients.TryRemove(id, out _);
+            _watches.TryRemove(id, out _);
             RaiseStatusChanged();
         }
     }
 
-    private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
+    private async Task HandleClientAsync(int id, TcpClient client, CancellationToken ct)
     {
         var stream = client.GetStream();
         var frame = new byte[MaxFrameBytes];
@@ -255,12 +313,94 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
                     var bodyLength = frameLength - 1;
                     if (bodyLength > 0 && frame[bodyLength - 1] == (byte)'\r')
                         bodyLength--;
-                    var (result, effect) = Process(frame.AsMemory(0, bodyLength));
+                    var body = frame.AsMemory(0, bodyLength);
+                    if (_pairing is not null && SessionProtocol.IsSessionType(SessionProtocol.PeekMessageType(body)))
+                    {
+                        var message = SessionProtocol.Parse(body);
+                        frameLength = 0;
+                        if (!await HandleSessionAsync(id, message, stream, ct).ConfigureAwait(false))
+                            return;
+                        continue;
+                    }
+                    var (result, effect) = Process(body);
                     frameLength = 0;
                     await SendAsync(stream, result, effect, _executor.PerformsRealActions, ct).ConfigureAwait(false);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Atiende HELLO, PAIR_REQUEST y PING. Devuelve false si hay que cerrar la conexión: mensaje
+    /// inválido, reloj desconocido o vinculación rechazada.
+    /// </summary>
+    private async Task<bool> HandleSessionAsync(int id, SessionMessage? message, NetworkStream stream, CancellationToken ct)
+    {
+        static long Now() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        switch (message)
+        {
+            case null:
+                _log.Write(EventLevel.Warning, "session", "rejected reason=INVALID_MESSAGE");
+                await WriteLineAsync(stream, SessionProtocol.HelloRejected(null, ReasonCodes.MalformedJson), ct).ConfigureAwait(false);
+                return false;
+
+            case { Type: SessionMessageType.Ping }:
+                if (!_watches.ContainsKey(id))
+                {
+                    await WriteLineAsync(stream, SessionProtocol.HelloRejected(message.MessageId, SessionProtocol.NotAuthenticated), ct).ConfigureAwait(false);
+                    return false;
+                }
+                await WriteLineAsync(stream, SessionProtocol.Pong(message.MessageId, Now()), ct).ConfigureAwait(false);
+                return true;
+
+            case { Type: SessionMessageType.Hello }:
+                // Solo relojes guardados: el panel de prueba no se presenta como reloj.
+                if (!_pairing!.Registry.TryGet(message.DeviceId!, out var known) || !known!.Persistent
+                    || !_pairing.Registry.TryGetToken(message.DeviceId!, out var expected)
+                    || !CryptographicOperations.FixedTimeEquals(expected, Encoding.UTF8.GetBytes(message.SessionToken!)))
+                {
+                    _log.Write(EventLevel.Warning, "session", "hello_rejected reason=UNAUTHORIZED_DEVICE");
+                    await WriteLineAsync(stream, SessionProtocol.HelloRejected(message.MessageId, ReasonCodes.UnauthorizedDevice), ct).ConfigureAwait(false);
+                    return false;
+                }
+                _watches[id] = known.Name;
+                _log.Write(EventLevel.Info, "session", $"hello device={message.DeviceId}");
+                await WriteLineAsync(stream, SessionProtocol.HelloAck(message.MessageId, _options.PcName, Now()), ct).ConfigureAwait(false);
+                RaiseStatusChanged();
+                return true;
+
+            default: // PairRequest
+                _log.Write(EventLevel.Info, "session", $"pair_requested device={message.DeviceId}");
+                var (outcome, device) = await _pairing!.RequestAsync(
+                    message.DeviceId!, message.DeviceName!,
+                    code => WriteLineAsync(stream, SessionProtocol.PairPending(message.MessageId, code, _options.PcName), ct),
+                    ct).ConfigureAwait(false);
+                _log.Write(EventLevel.Info, "session", $"pair_finished device={message.DeviceId} outcome={outcome}");
+                if (outcome == PairingOutcome.Accepted)
+                {
+                    _watches[id] = device!.Name;
+                    await WriteLineAsync(stream, SessionProtocol.PairAccepted(message.MessageId, device.Token, _options.PcName, Now()), ct).ConfigureAwait(false);
+                    RaiseStatusChanged();
+                    return true;
+                }
+                var reason = outcome switch
+                {
+                    PairingOutcome.Rejected => SessionProtocol.PairingRejectedByUser,
+                    PairingOutcome.Busy => SessionProtocol.PairingBusy,
+                    _ => SessionProtocol.PairingTimedOut,
+                };
+                if (outcome != PairingOutcome.Cancelled)
+                    await WriteLineAsync(stream, SessionProtocol.PairRejected(message.MessageId, reason), ct).ConfigureAwait(false);
+                return false;
+        }
+    }
+
+    private static async Task WriteLineAsync(NetworkStream stream, byte[] json, CancellationToken ct)
+    {
+        var line = new byte[json.Length + 1];
+        json.CopyTo(line, 0);
+        line[^1] = (byte)'\n';
+        await stream.WriteAsync(line.AsMemory(), ct).ConfigureAwait(false);
     }
 
     private (ValidationResult Result, string? Effect) Process(ReadOnlyMemory<byte> body)

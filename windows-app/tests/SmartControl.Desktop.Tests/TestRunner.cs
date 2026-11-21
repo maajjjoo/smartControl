@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -38,6 +38,7 @@ internal static class TestRunner
         tests.AddRange(AnnouncementTests.All());
         tests.AddRange(HighContrastTests.All());
         tests.AddRange(ExecutionTests.All());
+        tests.AddRange(PairingWindowTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();

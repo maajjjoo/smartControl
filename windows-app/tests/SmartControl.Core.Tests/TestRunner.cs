@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -62,6 +62,7 @@ internal static class TestRunner
         tests.AddRange(ValidatorTests.All());
         tests.AddRange(ReceiverTests.All());
         tests.AddRange(RealExecutionTests.All());
+        tests.AddRange(PairingTests.All());
         tests.AddRange(EventLogTests.All());
         tests.AddRange(SensorWindowTests.All());
         tests.AddRange(MovementFeaturesTests.All());

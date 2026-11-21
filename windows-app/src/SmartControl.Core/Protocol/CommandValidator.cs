@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
+using SmartControl.Core.Pairing;
 
 namespace SmartControl.Core.Protocol;
 
@@ -44,7 +45,7 @@ public sealed class CommandValidator
     private static readonly Regex GestureIdPattern =
         new(@"\A[A-Z][A-Z0-9_]{0,63}\z", RegexOptions.CultureInvariant);
 
-    private readonly Dictionary<string, byte[]> _pairedTokens;
+    private readonly PairedDeviceRegistry _devices;
     private readonly CommandValidatorOptions _options;
     private readonly Func<long> _clockMs;
 
@@ -53,8 +54,21 @@ public sealed class CommandValidator
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
     private ControlMode? _receiverMode;
 
+    /// <summary>Validador con dispositivos fijos (pruebas y herramientas).</summary>
     public CommandValidator(
         IReadOnlyDictionary<string, string> pairedDevices,
+        CommandValidatorOptions? options = null,
+        Func<long>? clockMs = null)
+        : this(SessionRegistry(pairedDevices), options, clockMs)
+    {
+    }
+
+    /// <summary>
+    /// Validador que consulta <paramref name="devices"/> en cada mensaje, así que un reloj recién
+    /// vinculado u olvidado cuenta en el acto.
+    /// </summary>
+    public CommandValidator(
+        PairedDeviceRegistry devices,
         CommandValidatorOptions? options = null,
         Func<long>? clockMs = null)
     {
@@ -64,10 +78,16 @@ public sealed class CommandValidator
         if (_options.ReplayCacheSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(options), "ReplayCacheSize debe ser positivo");
 
-        _pairedTokens = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (var (deviceId, token) in pairedDevices)
-            _pairedTokens[deviceId] = Encoding.UTF8.GetBytes(token);
+        _devices = devices;
         _clockMs = clockMs ?? (() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    }
+
+    private static PairedDeviceRegistry SessionRegistry(IReadOnlyDictionary<string, string> pairedDevices)
+    {
+        var registry = new PairedDeviceRegistry();
+        foreach (var (deviceId, token) in pairedDevices)
+            registry.AddSessionDevice(deviceId, token, deviceId);
+        return registry;
     }
 
     /// <summary>Si tiene valor, solo se aceptan acciones de ese modo.</summary>
@@ -185,7 +205,7 @@ public sealed class CommandValidator
                 return ValidationResult.Reject(Invalid, ReasonCodes.UnsupportedVersion, messageId);
 
             // 3. Vinculación del dispositivo (comparación en tiempo constante).
-            if (!_pairedTokens.TryGetValue(deviceId, out var expectedToken)
+            if (!_devices.TryGetToken(deviceId, out var expectedToken)
                 || !CryptographicOperations.FixedTimeEquals(expectedToken, Encoding.UTF8.GetBytes(token)))
                 return ValidationResult.Reject(Invalid, ReasonCodes.UnauthorizedDevice, messageId);
 

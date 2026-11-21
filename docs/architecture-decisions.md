@@ -30,7 +30,7 @@ De acuerdo con la Sección 6 del SRS, las siguientes decisiones no se asumen a p
 - **Opción A (Wi-Fi Local — WebSocket / TCP / UDP en LAN):** Alta velocidad, fácil depuración desde emulador Wear OS y reloj físico en la misma red local, soporte nativo multiplataforma.
 - **Opción B (Bluetooth Clásico RFCOMM / BLE GATT):** No requiere red Wi-Fi común entre el reloj y el PC, menor consumo energético en reposo, pero mayor complejidad de emparejamiento con el stack Bluetooth de Windows y limitaciones en el emulador de Android Studio.
 - **Criterio de decisión en Fase 2:** Latencia, estabilidad de reconexión (RF-17) y facilidad de vinculación segura (RNF-07). Gracias a la interfaz de transporte desacoplada (RNF-16), el sistema podrá soportar adaptadores intercambiables.
-- **Estado:** sigue pendiente. La integración del transporte queda fuera de la primera etapa del módulo de IA hasta resolver el protocolo y las pruebas con un reloj físico.
+- **Estado (2026-11-20):** primera versión con **Wi-Fi local (TCP + búsqueda por UDP)**, porque se prueba en el emulador y no exige emparejar Bluetooth con Windows. Detalle en [communication-protocol.md §3.4](communication-protocol.md). Bluetooth sigue como alternativa para relojes sin red Wi-Fi común; falta medir latencia, batería y estabilidad en un reloj físico.
 
 ### ADR-03: Enfoque del Reconocimiento de Gestos (Reglas + ML Híbrido vs. Modelo ML Puro)
 - **Alternativas:** Clasificador híbrido (filtrado por energía + características estadísticas/DTW/Random Forest/MLP ligero o TFLite/ONNX).

@@ -1,11 +1,14 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Automation;
 using Microsoft.Win32;
 using SmartControl.Core.Logging;
+using SmartControl.Core.Pairing;
 using SmartControl.Core.Protocol;
 using SmartControl.Core.Transport;
 using SmartControl.Desktop.Ui;
@@ -37,14 +40,23 @@ internal sealed class MainForm : Form
     private readonly Label _lastResponseLabel = new();
     private readonly Label _technicalLabel = new();
     private readonly StatusAnnouncement _statusAnnouncement = new();
+    private readonly PairingCoordinator? _pairing;
+    private readonly Card _pairingCard = new();
+    private readonly Label _pairingDetail = new();
+    private readonly Label _pairingCode = new();
+    private readonly SmartButton _pairButton = new();
+    private readonly SmartButton _rejectPairButton = new();
+    private readonly SmartButton _watchesButton = new();
+    private PairingRequest? _pendingPairing;
 
     private ControlMode _testMode = ControlMode.Presentation;
     private byte[]? _lastSentMessage;
     private bool _closingAfterStop;
 
-    public MainForm(LocalCommandReceiver receiver, FileEventLog log, string testDeviceId, string testToken)
+    public MainForm(LocalCommandReceiver receiver, FileEventLog log, string testDeviceId, string testToken, PairingCoordinator? pairing = null)
     {
         _receiver = receiver;
+        _pairing = pairing;
         _logPath = log.CurrentFilePath;
         _testDeviceId = testDeviceId;
         _testToken = testToken;
@@ -62,6 +74,11 @@ internal sealed class MainForm : Form
 
         _receiver.StatusChanged += (_, _) => RunOnUi(UpdateStatus);
         _receiver.CommandProcessed += (_, e) => RunOnUi(() => AddActivity(e));
+        if (_pairing is not null)
+        {
+            _pairing.PairingRequested += (_, request) => RunOnUi(() => ShowPairing(request));
+            _pairing.Registry.Changed += (_, _) => RunOnUi(UpdateStatus);
+        }
         Load += (_, _) => StartReceiver();
         FormClosing += OnFormClosing;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
@@ -107,11 +124,12 @@ internal sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 4,
+            RowCount = 5,
             Padding = new Padding(24, 20, 24, 12),
         }.WithColors(back: () => Palette.Background);
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(360)));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -120,11 +138,14 @@ internal sealed class MainForm : Form
         var header = BuildHeader();
         root.Controls.Add(header, 0, 0);
         root.SetColumnSpan(header, 2);
+        var pairing = BuildPairingCard();
+        root.Controls.Add(pairing, 0, 1);
+        root.SetColumnSpan(pairing, 2);
         var status = BuildStatusCard();
-        root.Controls.Add(status, 0, 1);
+        root.Controls.Add(status, 0, 2);
         root.SetColumnSpan(status, 2);
-        root.Controls.Add(BuildActivityCard(), 0, 2);
-        root.Controls.Add(BuildTestCard(), 1, 2);
+        root.Controls.Add(BuildActivityCard(), 0, 3);
+        root.Controls.Add(BuildTestCard(), 1, 3);
 
         _technicalLabel.Dock = DockStyle.Fill;
         _technicalLabel.AutoEllipsis = true;
@@ -132,7 +153,7 @@ internal sealed class MainForm : Form
         _technicalLabel.WithColors(fore: () => Palette.TextMuted);
         _technicalLabel.Margin = new Padding(2, 10, 2, 0);
         _technicalLabel.Height = LogicalToDeviceUnits(22);
-        root.Controls.Add(_technicalLabel, 0, 3);
+        root.Controls.Add(_technicalLabel, 0, 4);
         root.SetColumnSpan(_technicalLabel, 2);
 
         Controls.Add(root);
@@ -167,6 +188,175 @@ internal sealed class MainForm : Form
         header.Controls.Add(subtitle, 0, 1);
         header.SetColumnSpan(subtitle, 2);
         return header;
+    }
+
+    /// <summary>
+    /// Aviso que aparece cuando un reloj pide vincularse. Solo se ve mientras hay una solicitud.
+    /// </summary>
+    private Control BuildPairingCard()
+    {
+        _pairingCard.Dock = DockStyle.Fill;
+        _pairingCard.AutoSize = true;
+        _pairingCard.Padding = new Padding(20, 16, 16, 16);
+        _pairingCard.Margin = new Padding(0, 0, 0, 16);
+        _pairingCard.Visible = false;
+        _pairingCard.AccessibleName = "Solicitud de vinculación";
+        _pairingCard.AccessibleRole = AccessibleRole.Alert;
+
+        var grid = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 2,
+        }.WithColors(back: () => Palette.Surface);
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var title = new Label
+        {
+            Text = "Un reloj quiere conectarse",
+            AutoSize = true,
+            Font = Typography.StatusTitle,
+            Margin = new Padding(0),
+        }.WithColors(fore: () => Palette.Text);
+        _pairingDetail.AutoSize = true;
+        _pairingDetail.Margin = new Padding(1, 4, 16, 0);
+        _pairingDetail.WithColors(fore: () => Palette.TextMuted);
+
+        _pairingCode.AutoSize = true;
+        _pairingCode.Font = Typography.Title;
+        _pairingCode.Anchor = AnchorStyles.Right;
+        _pairingCode.Margin = new Padding(0, 0, 20, 0);
+        _pairingCode.WithColors(fore: () => Palette.Text);
+
+        _pairButton.Name = "pairAccept";
+        _pairButton.Text = "Vincular";
+        _pairButton.Kind = ButtonKind.Primary;
+        _pairButton.Size = new Size(LogicalToDeviceUnits(116), LogicalToDeviceUnits(38));
+        _pairButton.Margin = new Padding(0, 0, 8, 0);
+        _pairButton.Anchor = AnchorStyles.Right;
+        _pairButton.Click += (_, _) => AnswerPairing(accept: true);
+
+        _rejectPairButton.Name = "pairReject";
+        _rejectPairButton.Text = "Rechazar";
+        _rejectPairButton.Size = new Size(LogicalToDeviceUnits(116), LogicalToDeviceUnits(38));
+        _rejectPairButton.Anchor = AnchorStyles.Right;
+        _rejectPairButton.Click += (_, _) => AnswerPairing(accept: false);
+
+        var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0), Anchor = AnchorStyles.Right }
+            .WithColors(back: () => Palette.Surface);
+        buttons.Controls.Add(_pairButton);
+        buttons.Controls.Add(_rejectPairButton);
+
+        grid.Controls.Add(title, 0, 0);
+        grid.Controls.Add(_pairingDetail, 0, 1);
+        grid.Controls.Add(_pairingCode, 1, 0);
+        grid.SetRowSpan(_pairingCode, 2);
+        grid.Controls.Add(buttons, 2, 0);
+        grid.SetRowSpan(buttons, 2);
+        _pairingCard.Controls.Add(grid);
+        return _pairingCard;
+    }
+
+    private void ShowPairing(PairingRequest request)
+    {
+        if (request.Completion.IsCompleted)
+            return;
+        _pendingPairing = request;
+        _pairingDetail.Text = $"«{request.DeviceName}» quiere controlar este equipo. Vincúlalo solo si es tu reloj y muestra el mismo código.";
+        _pairingCode.Text = request.Code;
+        // Las cifras separadas para que el lector de pantalla las lea una a una.
+        _pairingCode.AccessibleName = $"Código {string.Join(" ", request.Code.ToCharArray())}";
+        _pairingCard.Visible = true;
+        request.Completion.ContinueWith(_ => RunOnUi(() => HidePairing(request)), TaskScheduler.Default);
+        BringToAttention();
+        Announcer.Announce(this, $"Un reloj quiere conectarse: {request.DeviceName}. Código {string.Join(" ", request.Code.ToCharArray())}.",
+            AutomationNotificationKind.Other);
+    }
+
+    /// <summary>Solicitud que muestra el aviso ahora mismo, o nula.</summary>
+    internal PairingRequest? PendingPairing => _pendingPairing;
+
+    /// <summary>Código que muestra el aviso.</summary>
+    internal string PairingCodeText => _pairingCode.Text;
+
+    internal void AnswerPairing(bool accept)
+    {
+        var request = _pendingPairing;
+        if (request is null)
+            return;
+        if (accept) request.Accept();
+        else request.Reject();
+        HidePairing(request);
+    }
+
+    private void HidePairing(PairingRequest request)
+    {
+        if (!ReferenceEquals(_pendingPairing, request))
+            return;
+        _pendingPairing = null;
+        _pairingCard.Visible = false;
+    }
+
+    /// <summary>
+    /// Restaura la ventana si estaba minimizada y hace parpadear su botón en la barra de tareas:
+    /// Windows no deja que una aplicación se ponga al frente sola, pero sí pedir atención.
+    /// </summary>
+    private void BringToAttention()
+    {
+        if (WindowState == FormWindowState.Minimized)
+            WindowState = FormWindowState.Normal;
+        Activate();
+        var info = new FlashInfo
+        {
+            Size = (uint)Marshal.SizeOf<FlashInfo>(),
+            Window = Handle,
+            Flags = 0x3 | 0xC, // FLASHW_ALL | FLASHW_TIMERNOFG: hasta que la ventana pase al frente.
+        };
+        FlashWindowEx(ref info);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FlashInfo
+    {
+        public uint Size;
+        public IntPtr Window;
+        public uint Flags;
+        public uint Count;
+        public uint Timeout;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool FlashWindowEx(ref FlashInfo info);
+
+    /// <summary>Menú con los relojes vinculados, para olvidar uno.</summary>
+    private void ShowWatchesMenu()
+    {
+        if (_pairing is null)
+            return;
+        var menu = new ContextMenuStrip();
+        var saved = _pairing.Registry.Saved;
+        if (saved.Count == 0)
+            menu.Items.Add(new ToolStripMenuItem("Ningún reloj vinculado") { Enabled = false });
+        foreach (var device in saved)
+        {
+            var item = new ToolStripMenuItem($"Olvidar «{device.Name}»");
+            item.Click += (_, _) => ForgetWatch(device);
+            menu.Items.Add(item);
+        }
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
+        menu.Show(_watchesButton, new Point(0, _watchesButton.Height));
+    }
+
+    private void ForgetWatch(PairedDevice device)
+    {
+        var answer = MessageBox.Show(this,
+            $"«{device.Name}» dejará de controlar este equipo. Para volver a usarlo habrá que vincularlo otra vez.",
+            "Olvidar reloj", MessageBoxButtons.OKCancel, MessageBoxIcon.None, MessageBoxDefaultButton.Button2);
+        if (answer == DialogResult.OK)
+            _pairing!.Registry.Forget(device.DeviceId);
     }
 
     private Control BuildStatusCard()
@@ -206,15 +396,27 @@ internal sealed class MainForm : Form
 
         _startStopButton.Name = "receiverToggle";
         _startStopButton.Size = new Size(LogicalToDeviceUnits(132), LogicalToDeviceUnits(38));
-        _startStopButton.Anchor = AnchorStyles.Right;
+        _startStopButton.Margin = new Padding(0);
         _startStopButton.Click += async (_, _) => await ToggleReceiverAsync();
+
+        _watchesButton.Name = "pairedWatches";
+        _watchesButton.Kind = ButtonKind.Subtle;
+        _watchesButton.Size = new Size(LogicalToDeviceUnits(170), LogicalToDeviceUnits(38));
+        _watchesButton.Margin = new Padding(0, 0, 8, 0);
+        _watchesButton.Visible = _pairing is not null;
+        _watchesButton.Click += (_, _) => ShowWatchesMenu();
+
+        var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0), Anchor = AnchorStyles.Right }
+            .WithColors(back: () => Palette.Surface);
+        actions.Controls.Add(_watchesButton);
+        actions.Controls.Add(_startStopButton);
 
         grid.Controls.Add(_stateDot, 0, 0);
         grid.SetRowSpan(_stateDot, 2);
         grid.Controls.Add(_stateTitle, 1, 0);
         grid.Controls.Add(_stateDetail, 1, 1);
-        grid.Controls.Add(_startStopButton, 2, 0);
-        grid.SetRowSpan(_startStopButton, 2);
+        grid.Controls.Add(actions, 2, 0);
+        grid.SetRowSpan(actions, 2);
         card.Controls.Add(grid);
         return card;
     }
@@ -458,12 +660,23 @@ internal sealed class MainForm : Form
         switch (_receiver.State)
         {
             case ReceiverState.Running:
-                _stateDot.DotColor = Palette.Success;
-                _stateTitle.Text = "Recibiendo comandos";
-                _stateDetail.Text = "Por ahora solo desde este equipo: el reloj todavía no puede conectarse.";
+                var watches = _receiver.ConnectedWatches;
+                if (watches.Length > 0)
+                {
+                    _stateDot.DotColor = Palette.Success;
+                    _stateTitle.Text = "Reloj conectado";
+                    _stateDetail.Text = $"{string.Join(", ", watches)}. Los gestos controlan este equipo.";
+                }
+                else
+                {
+                    _stateDot.DotColor = Palette.Accent;
+                    _stateTitle.Text = "Esperando al reloj";
+                    _stateDetail.Text = "Abre SmartControl en el reloj. Tiene que estar en la misma red Wi-Fi que este equipo.";
+                }
                 _startStopButton.Text = "Pausar";
                 _startStopButton.Kind = ButtonKind.Secondary;
-                _technicalLabel.Text = $"Detalles técnicos · escucha en 127.0.0.1:{_receiver.Port} · conexiones abiertas: {_receiver.ConnectedClients} · registro: {_logPath}";
+                var discovery = _receiver.DiscoveryPort > 0 ? $" · búsqueda en UDP {_receiver.DiscoveryPort}" : "";
+                _technicalLabel.Text = $"Detalles técnicos · puerto {_receiver.Port}{discovery} · conexiones abiertas: {_receiver.ConnectedClients} · registro: {_logPath}";
                 break;
             case ReceiverState.Faulted:
                 _stateDot.DotColor = Palette.Danger;
@@ -483,6 +696,12 @@ internal sealed class MainForm : Form
                 break;
         }
         _startStopButton.Invalidate();
+        if (_pairing is not null)
+        {
+            var count = _pairing.Registry.Saved.Count;
+            _watchesButton.Text = count == 1 ? "1 reloj vinculado" : $"{count} relojes vinculados";
+            _watchesButton.Invalidate();
+        }
         AnnounceStatus();
     }
 
