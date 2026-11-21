@@ -31,7 +31,7 @@ internal static class ActivityAccessibilityTests
     {
         var entry = Entry(new ValidationResult(CommandStatus.Accepted, ReasonCodes.Ok, AllowedAction.SlideNext, ControlMode.Presentation));
         Check.Equal(
-            $"Hecho: Siguiente diapositiva. Presentación, simulado, no se controló ninguna aplicación. A las {LocalTime}.",
+            $"Hecho: Siguiente diapositiva. Presentación, flecha derecha en la ventana activa. A las {LocalTime}.",
             entry.ToString());
     }
 

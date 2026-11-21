@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Windows.Forms;
-using SmartControl.Core.Execution;
+using SmartControl.Desktop.Execution;
 using SmartControl.Core.Logging;
 using SmartControl.Core.Protocol;
 using SmartControl.Core.Transport;
@@ -26,7 +26,7 @@ internal static class Program
         var testToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var validator = new CommandValidator(new Dictionary<string, string> { [TestPanelDeviceId] = testToken });
         var log = new FileEventLog(FileEventLog.DefaultDirectory);
-        var receiver = new LocalCommandReceiver(validator, new SimulatedCommandExecutor(), log);
+        var receiver = new LocalCommandReceiver(validator, new WindowsCommandExecutor(), log);
 
         log.Write(EventLevel.Info, "app", "started");
         Application.Run(new MainForm(receiver, log, TestPanelDeviceId, testToken));

@@ -27,6 +27,8 @@ En la versión inicial del MVP solo se autorizan las siguientes **cuatro (4) acc
 
 > **Nota sobre `MEDIA_PLAY` y `MEDIA_PAUSE`:** Ambas acciones deben ejecutar comportamientos explícitos y diferenciados (no un simple alternador o *toggle* ciego como `VK_MEDIA_PLAY_PAUSE`, el cual no distingue el estado actual). Se contempla como alternativa preferida el uso de las operaciones específicas de reproducción y pausa expuestas por `GlobalSystemMediaTransportControlsSession` en Windows, sujeto a comprobar su viabilidad técnica durante las pruebas correspondientes.
 
+> **Implementación (2026-11-20):** `windows-app/src/SmartControl.Desktop/Execution/`. Las diapositivas usan `SendInput` con `VK_RIGHT` / `VK_LEFT` fijos en el código. La música usa `TryPlayAsync` / `TryPauseAsync` de `GlobalSystemMediaTransportControlsSession`, llamadas por COM sin paquetes externos. Comprobado en este equipo: la sesión multimedia se lee (era Spotify). Pendiente de comprobar con un reproductor y una presentación reales.
+
 ---
 
 ## 3. Reglas de Validación de la Lista Blanca

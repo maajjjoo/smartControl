@@ -8,14 +8,17 @@ namespace SmartControl.Core.Protocol;
 public static class CommandResponseWriter
 {
     /// <summary>
-    /// Estado propio de esta etapa: el comando se validó y se entregó al ejecutor
-    /// simulado, pero no se realizó ninguna acción real. No forma parte del protocolo.
+    /// El comando se validó y se entregó a un ejecutor simulado: no se realizó ninguna acción
+    /// real. Solo aparece en pruebas. No forma parte del protocolo.
     /// </summary>
     public const string ValidatedNotExecuted = "VALIDATED_NOT_EXECUTED";
 
-    public static string ToWireStatus(CommandStatus status) => status switch
+    /// <summary>La acción se realizó en Windows (protocolo §3.2).</summary>
+    public const string Executed = "EXECUTED";
+
+    public static string ToWireStatus(CommandStatus status, bool executed = false) => status switch
     {
-        CommandStatus.Accepted => ValidatedNotExecuted,
+        CommandStatus.Accepted => executed ? Executed : ValidatedNotExecuted,
         CommandStatus.RejectedLowConfidence => "REJECTED_LOW_CONFIDENCE",
         CommandStatus.RejectedNotAllowed => "REJECTED_NOT_ALLOWED",
         CommandStatus.RejectedInvalidMessage => "REJECTED_INVALID_MESSAGE",
@@ -23,9 +26,15 @@ public static class CommandResponseWriter
         _ => throw new ArgumentOutOfRangeException(nameof(status)),
     };
 
-    /// <summary>Devuelve la respuesta en UTF-8, sin el salto de línea final.</summary>
-    public static byte[] Write(ValidationResult result, string? effect, long nowMs)
+    /// <summary>
+    /// Devuelve la respuesta en UTF-8, sin el salto de línea final. <paramref name="executed"/>
+    /// indica que el ejecutor actúa de verdad (no simulado).
+    /// </summary>
+    public static byte[] Write(ValidationResult result, string? effect, long nowMs, bool executed = false)
     {
+        var acceptedAction = result.Status == CommandStatus.Accepted && result.Action is { } a
+            ? CommandAllowlist.ToWireName(a)
+            : null;
         using var buffer = new MemoryStream();
         using (var json = new Utf8JsonWriter(buffer))
         {
@@ -37,8 +46,8 @@ public static class CommandResponseWriter
             json.WriteString("messageType", "COMMAND_RESPONSE");
             json.WritePropertyName("payload");
             json.WriteStartObject();
-            json.WriteString("status", ToWireStatus(result.Status));
-            json.WriteNull("executedAction");
+            json.WriteString("status", ToWireStatus(result.Status, executed));
+            WriteStringOrNull(json, "executedAction", executed ? acceptedAction : null);
             WriteStringOrNull(json, "validatedAction",
                 result.Action is { } action ? CommandAllowlist.ToWireName(action) : null);
             json.WriteString("reasonCode", result.ReasonCode);

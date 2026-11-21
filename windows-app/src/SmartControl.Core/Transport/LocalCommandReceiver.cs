@@ -243,7 +243,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
                     // Trama demasiado grande o sin delimitador: no se puede resincronizar.
                     var tooLarge = ValidationResult.Reject(CommandStatus.RejectedInvalidMessage, ReasonCodes.MessageTooLargeOrUnterminated);
                     Report(tooLarge, null);
-                    await SendAsync(stream, tooLarge, null, ct).ConfigureAwait(false);
+                    await SendAsync(stream, tooLarge, null, executed: false, ct).ConfigureAwait(false);
                     return;
                 }
                 Buffer.BlockCopy(chunk, offset, frame, frameLength, take);
@@ -257,7 +257,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
                         bodyLength--;
                     var (result, effect) = Process(frame.AsMemory(0, bodyLength));
                     frameLength = 0;
-                    await SendAsync(stream, result, effect, ct).ConfigureAwait(false);
+                    await SendAsync(stream, result, effect, _executor.PerformsRealActions, ct).ConfigureAwait(false);
                 }
             }
         }
@@ -272,6 +272,10 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
             try
             {
                 effect = _executor.Execute(result.Action!.Value);
+            }
+            catch (ActionUnavailableException ex)
+            {
+                result = result with { Status = CommandStatus.ExecutionError, ReasonCode = ex.ReasonCode };
             }
             catch (Exception)
             {
@@ -289,7 +293,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         _log.Write(
             result.Status == CommandStatus.Accepted ? EventLevel.Info : EventLevel.Warning,
             "command",
-            $"messageId={result.MessageId ?? "-"} status={CommandResponseWriter.ToWireStatus(result.Status)} reason={result.ReasonCode} action={action}");
+            $"messageId={result.MessageId ?? "-"} status={CommandResponseWriter.ToWireStatus(result.Status, _executor.PerformsRealActions)} reason={result.ReasonCode} action={action}");
 
         var handler = CommandProcessed;
         if (handler is null)
@@ -304,9 +308,9 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         }
     }
 
-    private static async Task SendAsync(NetworkStream stream, ValidationResult result, string? effect, CancellationToken ct)
+    private static async Task SendAsync(NetworkStream stream, ValidationResult result, string? effect, bool executed, CancellationToken ct)
     {
-        var json = CommandResponseWriter.Write(result, effect, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var json = CommandResponseWriter.Write(result, effect, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), executed);
         var line = new byte[json.Length + 1];
         json.CopyTo(line, 0);
         line[^1] = (byte)'\n';

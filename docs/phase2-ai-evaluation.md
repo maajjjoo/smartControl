@@ -15,7 +15,7 @@ No es un chatbot ni usa modelos de lenguaje.
 ## 2. Situación de partida
 
 - **Reloj:** `WristGestureDetector` reconoce dos giros con **reglas fijas** (umbrales, dominancia del eje, espera y vuelta a reposo). No es IA. Solo usa el giroscopio.
-- **Windows:** recibe `COMMAND_REQUEST` por TCP solo en loopback, los valida y los entrega a un ejecutor **simulado**.
+- **Windows:** recibe `COMMAND_REQUEST` por TCP solo en loopback, los valida y los entrega al ejecutor, que desde el 2026-11-20 realiza las acciones de verdad.
 - **Transporte reloj–Windows:** no existe (ADR-02 pendiente). El primer trabajo de IA no depende de él.
 
 ## 3. Reparto de responsabilidades

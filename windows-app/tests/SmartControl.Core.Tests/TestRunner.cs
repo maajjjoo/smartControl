@@ -61,6 +61,7 @@ internal static class TestRunner
         var tests = new List<(string Name, Func<Task> Body)>();
         tests.AddRange(ValidatorTests.All());
         tests.AddRange(ReceiverTests.All());
+        tests.AddRange(RealExecutionTests.All());
         tests.AddRange(EventLogTests.All());
         tests.AddRange(SensorWindowTests.All());
         tests.AddRange(MovementFeaturesTests.All());

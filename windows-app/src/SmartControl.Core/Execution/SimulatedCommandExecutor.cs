@@ -10,8 +10,25 @@ namespace SmartControl.Core.Execution;
 /// </summary>
 public interface ICommandExecutor
 {
-    /// <summary>Ejecuta la acción y devuelve una descripción breve del efecto.</summary>
+    /// <summary>
+    /// Ejecuta la acción y devuelve una descripción breve del efecto. Si la acción no se puede
+    /// realizar por un motivo conocido, lanza <see cref="ActionUnavailableException"/>.
+    /// </summary>
     string Execute(AllowedAction action);
+
+    /// <summary>true si las acciones cambian algo en Windows; false si solo se simulan.</summary>
+    bool PerformsRealActions { get; }
+}
+
+/// <summary>
+/// La acción era válida pero no se pudo realizar por un motivo conocido. <see cref="ReasonCode"/>
+/// es una de las constantes de <see cref="ReasonCodes"/>, nunca texto recibido.
+/// </summary>
+public sealed class ActionUnavailableException : Exception
+{
+    public ActionUnavailableException(string reasonCode) : base(reasonCode) => ReasonCode = reasonCode;
+
+    public string ReasonCode { get; }
 }
 
 /// <summary>
@@ -23,6 +40,8 @@ public sealed class SimulatedCommandExecutor : ICommandExecutor
 {
     private readonly object _lock = new();
     private readonly List<AllowedAction> _history = new();
+
+    public bool PerformsRealActions => false;
 
     public IReadOnlyList<AllowedAction> History
     {

@@ -20,7 +20,7 @@ internal sealed record ActivityEntry(DateTimeOffset Time, bool Accepted, string 
         {
             var mode = Texts.ModeName(CommandAllowlist.RequiredMode(action));
             return new ActivityEntry(e.ReceivedAt, true, Texts.ActionGlyph(action), Texts.ActionName(action),
-                $"{mode} · simulado, no se controló ninguna aplicación", result.ReasonCode);
+                $"{mode} · {Texts.ActionEffect(action)}", result.ReasonCode);
         }
         var (title, detail) = Texts.Rejection(result);
         return new ActivityEntry(e.ReceivedAt, false, Icons.Blocked, title, detail, result.ReasonCode);
@@ -66,6 +66,14 @@ internal static class Texts
         _ => Icons.Check,
     };
 
+    /// <summary>Qué se hizo en Windows para la acción, en palabras del usuario.</summary>
+    public static string ActionEffect(AllowedAction action) => action switch
+    {
+        AllowedAction.SlideNext => "flecha derecha en la ventana activa",
+        AllowedAction.SlidePrevious => "flecha izquierda en la ventana activa",
+        _ => "enviado al reproductor activo",
+    };
+
     public static string ModeName(ControlMode mode) => mode switch
     {
         ControlMode.Presentation => "Presentación",
@@ -104,6 +112,12 @@ internal static class Texts
                 return ("Mensaje demasiado grande", "Superaba el tamaño permitido. " + Nothing);
             case ReasonCodes.ExecutorFailed:
                 return ("No se pudo realizar la acción", "La orden era válida, pero falló al ejecutarse.");
+            case ReasonCodes.NoMediaSession:
+                return ("No hay música abierta", "Abre Spotify, YouTube u otro reproductor y vuelve a intentarlo.");
+            case ReasonCodes.MediaCommandRefused:
+                return ("El reproductor no respondió", "El reproductor abierto no aceptó la orden.");
+            case ReasonCodes.InputBlocked:
+                return ("Windows bloqueó la tecla", "No se pudo pulsar la flecha. Comprueba que la pantalla no esté bloqueada.");
         }
         return result.Status == CommandStatus.RejectedInvalidMessage
             ? ("Mensaje dañado", "Llegó incompleto o con un formato que no se entiende. " + Nothing)

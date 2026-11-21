@@ -158,14 +158,9 @@ internal sealed class MainForm : Form
             Font = Typography.Title,
             Margin = new Padding(0),
         }.WithColors(fore: () => Palette.Text), 0, 0);
-        header.Controls.Add(new Pill("Modo de prueba · las acciones se simulan", () => Palette.WarningSoft, () => Palette.WarningOnSoft)
-        {
-            Anchor = AnchorStyles.Left,
-            Margin = new Padding(12, 4, 0, 0),
-        }, 1, 0);
         var subtitle = new Label
         {
-            Text = "Controla tus presentaciones y tu música con gestos del reloj. Por ahora ninguna aplicación se controla de verdad.",
+            Text = "Controla tus presentaciones y tu música con gestos del reloj.",
             AutoSize = true,
             Margin = new Padding(2, 2, 0, 0),
         }.WithColors(fore: () => Palette.TextMuted);
@@ -283,7 +278,7 @@ internal sealed class MainForm : Form
         }.WithColors(back: () => Palette.Surface);
 
         flow.Controls.Add(new Label { Text = "Probar sin el reloj", AutoSize = true, Font = Typography.Section, Margin = new Padding(0) }.WithColors(fore: () => Palette.Text));
-        flow.Controls.Add(MutedText("Envía un comando desde este equipo. No es un gesto del reloj.", new Padding(0, 2, 0, 14)));
+        flow.Controls.Add(MutedText("Envía un comando desde este equipo, no desde el reloj. Las flechas llegan a la ventana que está al frente: desde aquí, esta misma.", new Padding(0, 2, 0, 14)));
 
         flow.Controls.Add(new Label { Text = "Modo", AutoSize = true, Font = Typography.Label, Margin = new Padding(0, 0, 0, 6) }.WithColors(fore: () => Palette.Text));
         _presentationMode.Text = Texts.ModeName(ControlMode.Presentation);
@@ -454,7 +449,7 @@ internal sealed class MainForm : Form
         var entry = ActivityEntry.From(e);
         _activity.Add(entry);
         ShowLastResponse(
-            entry.Accepted ? $"Hecho: {entry.Title} (simulado)." : $"Bloqueado: {entry.Title.ToLowerInvariant()}.",
+            entry.Accepted ? $"Hecho: {entry.Title}." : $"Bloqueado: {entry.Title.ToLowerInvariant()}.",
             entry.Accepted ? () => Palette.SuccessOnSoft : () => Palette.DangerOnSoft);
     }
 

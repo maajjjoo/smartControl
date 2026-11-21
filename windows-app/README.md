@@ -8,20 +8,27 @@ Componente receptor para **Windows (64 bits)** previsto en **C# y .NET**, encarg
   - **Modo Presentación (`PRESENTATION`):** Avanzar diapositiva (`SLIDE_NEXT`), retroceder diapositiva (`SLIDE_PREVIOUS`).
   - **Modo Multimedia (`MULTIMEDIA`):** Reproducir multimedia (`MEDIA_PLAY`), pausar multimedia (`MEDIA_PAUSE`).
 
-## Estado actual (etapa 1: aplicación base con acciones simuladas)
+## Estado actual (etapa 2: acciones reales en Windows)
 
-Aplicación de escritorio **WinForms sobre .NET 8**. Las acciones **se simulan**: no se envían teclas ni se controla ninguna aplicación.
+Aplicación de escritorio **WinForms sobre .NET 8**. Las acciones aceptadas **se ejecutan de verdad** (`src/SmartControl.Desktop/Execution/`):
+
+| Acción | Qué hace Windows |
+|---|---|
+| `SLIDE_NEXT` / `SLIDE_PREVIOUS` | Pulsa **→** / **←** en la ventana que esté al frente (PowerPoint, Google Slides, Canva, PDF a pantalla completa). La presentación debe estar al frente. |
+| `MEDIA_PLAY` / `MEDIA_PAUSE` | Pide **reproducir** o **pausar** al reproductor que tiene el control multimedia de Windows (Spotify, YouTube en el navegador, Reproductor multimedia…). Son dos órdenes distintas: pausar nunca reanuda. |
+
+Si no hay ningún reproductor abierto, el reproductor rechaza la orden o Windows bloquea la tecla, la respuesta es `EXECUTION_ERROR` con el motivo (`NO_MEDIA_SESSION`, `MEDIA_COMMAND_REFUSED`, `INPUT_BLOCKED`). Las teclas son fijas en el código: desde la red solo llega la acción validada. Limitación conocida de Windows: una ventana abierta como administrador no recibe las teclas de una aplicación normal, y Windows no lo indica.
 
 | Proyecto | Contenido |
 |---|---|
-| `src/SmartControl.Core` | Lista blanca (`CommandAllowlist`), validador (`CommandValidator`), receptor TCP solo en `127.0.0.1` (`LocalCommandReceiver`), ejecutor simulado, registro de eventos y reconocimiento local (`Recognition/`). No depende de la interfaz. |
-| `src/SmartControl.Desktop` | Ventana: estado del receptor, comandos recibidos con su resultado y panel de comandos de prueba. |
+| `src/SmartControl.Core` | Lista blanca (`CommandAllowlist`), validador (`CommandValidator`), receptor TCP solo en `127.0.0.1` (`LocalCommandReceiver`), ejecutor simulado (solo para pruebas), registro de eventos y reconocimiento local (`Recognition/`). No depende de la interfaz. |
+| `src/SmartControl.Desktop` | Ventana: estado del receptor, comandos recibidos con su resultado y panel de comandos de prueba. Ejecutor real (`Execution/`). |
 | `tests/SmartControl.Core.Tests` | Pruebas del validador, del receptor (con clientes reales en loopback), del registro y del reconocimiento local. Sin paquetes NuGet. |
-| `tests/SmartControl.Desktop.Tests` | Pruebas de la ventana sin mostrarla: texto y avisos para los lectores de pantalla, y colores con contraste alto. Sin paquetes NuGet. |
+| `tests/SmartControl.Desktop.Tests` | Pruebas de la ventana sin mostrarla: texto y avisos para los lectores de pantalla, colores con contraste alto y ejecutor real (sin pulsar teclas ni tocar la música: se usan versiones falsas, y el control multimedia real solo se lee). Sin paquetes NuGet. |
 
 Comportamiento:
 - El receptor escucha en `127.0.0.1:47800` y recibe JSON delimitado por salto de línea (máx. 4096 bytes), con las reglas de [communication-protocol.md §4](../docs/communication-protocol.md).
-- El panel de prueba envía mensajes reales por loopback, firmados con un token aleatorio que se genera en cada arranque y solo existe en memoria. **Son comandos explícitos, no gestos reconocidos**, y una prueba en loopback no demuestra la comunicación con el reloj.
+- El panel de prueba envía mensajes reales por loopback y **las acciones se ejecutan**: «Reproducir» y «Pausar» actúan sobre la música; las flechas llegan a la ventana al frente, que al pulsar el botón es la propia SmartControl. Los mensajes van firmados con un token aleatorio que se genera en cada arranque y solo existe en memoria. **Son comandos explícitos, no gestos reconocidos**, y una prueba en loopback no demuestra la comunicación con el reloj.
 - La interfaz solo muestra valores validados o generados por la aplicación, nunca texto recibido.
 - El registro está en `%LOCALAPPDATA%\SmartControl\logs\smartcontrol-AAAAMMDD.log` (un archivo por día, se borran los de más de 7 días). Guarda la fecha, el estado, el motivo, la acción validada y el `messageId` validado; nunca el token ni el mensaje.
 

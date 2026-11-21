@@ -67,8 +67,8 @@ internal static class AnnouncementTests
                 Confidence = 1.0,
             };
             var send = Task.Run(() => LoopbackTestClient.SendAsync(receiver.Port, request.ToUtf8Json(), TimeSpan.FromSeconds(3)));
-            PumpUntil(() => send.IsCompleted && heard.Contains("Hecho: Siguiente diapositiva (simulado)."));
-            Check.True(heard.Contains("Hecho: Siguiente diapositiva (simulado)."), $"falta la respuesta; se oyó: {string.Join(" | ", heard)}");
+            PumpUntil(() => send.IsCompleted && heard.Contains("Hecho: Siguiente diapositiva."));
+            Check.True(heard.Contains("Hecho: Siguiente diapositiva."), $"falta la respuesta; se oyó: {string.Join(" | ", heard)}");
             Check.Equal(1, heard.Count(h => h.StartsWith("Recibiendo comandos", StringComparison.Ordinal)),
                 "abrir y cerrar la conexión de prueba no debe repetir el estado");
 

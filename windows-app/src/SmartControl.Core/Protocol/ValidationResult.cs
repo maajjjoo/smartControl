@@ -2,7 +2,7 @@ namespace SmartControl.Core.Protocol;
 
 public enum CommandStatus
 {
-    /// <summary>Validado y entregado al ejecutor (en esta etapa, simulado).</summary>
+    /// <summary>Validado y entregado al ejecutor, que lo realizó o lo simuló.</summary>
     Accepted,
     RejectedLowConfidence,
     RejectedNotAllowed,
@@ -44,6 +44,12 @@ public static class ReasonCodes
     public const string ModeActionMismatch = "MODE_ACTION_MISMATCH";
     public const string ReceiverModeMismatch = "RECEIVER_MODE_MISMATCH";
     public const string ExecutorFailed = "EXECUTOR_FAILED";
+    /// <summary>No hay ningún reproductor multimedia abierto al que pedirle la acción.</summary>
+    public const string NoMediaSession = "NO_MEDIA_SESSION";
+    /// <summary>El reproductor existe pero rechazó la orden de reproducir o pausar.</summary>
+    public const string MediaCommandRefused = "MEDIA_COMMAND_REFUSED";
+    /// <summary>Windows no dejó enviar la tecla (por ejemplo, la ventana activa es de administrador).</summary>
+    public const string InputBlocked = "INPUT_BLOCKED";
     public const string InternalValidationError = "INTERNAL_VALIDATION_ERROR";
 }
 
