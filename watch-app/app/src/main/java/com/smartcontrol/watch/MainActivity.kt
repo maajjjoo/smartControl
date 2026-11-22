@@ -53,9 +53,29 @@ class MainActivity : ComponentActivity() {
                     paintWindowBackground()
                 },
                 languageChoice = settings.language,
-                onLanguageChange = { choice -> settings.language = choice },
+                onLanguageChange = { choice ->
+                    settings.language = choice
+                    // Los textos salen de los recursos: se vuelve a crear la pantalla en el idioma nuevo.
+                    recreate()
+                },
             )
         }
+    }
+
+    /**
+     * Idioma elegido en Ajustes. «Sistema» no cambia nada: Android elige español si el reloj está en
+     * español y, si no, inglés (el idioma por defecto de res/values).
+     */
+    override fun attachBaseContext(newBase: Context) {
+        val tag = AppSettings(newBase).language.tag
+        if (tag == null) {
+            super.attachBaseContext(newBase)
+            return
+        }
+        val locale = java.util.Locale.forLanguageTag(tag)
+        java.util.Locale.setDefault(locale)
+        val configuration = Configuration(newBase.resources.configuration).apply { setLocale(locale) }
+        super.attachBaseContext(newBase.createConfigurationContext(configuration))
     }
 
     /** Fondo de la ventana (se ve un instante al abrir o girar la app), igual que el tema elegido. */

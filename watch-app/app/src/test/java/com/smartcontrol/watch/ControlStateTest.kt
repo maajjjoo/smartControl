@@ -159,11 +159,11 @@ class ControlStateTest {
         val failed = connected().selectMode(ControlMode.MULTIMEDIA).sendCommand(Command.MEDIA_PLAY)
             .complete(1, CommandOutcome.Failed("NO_MEDIA_SESSION"))
         val result = failed.lastResult as CommandResult.Failed
-        assertEquals("Abre la música en el equipo", result.failure.label)
+        assertEquals(R.string.fail_no_media, result.failure.label)
         assertEquals("NO_MEDIA_SESSION", result.failure.code)
 
         val silent = connected().sendCommand(Command.SLIDE_NEXT).complete(1, CommandOutcome.NoResponse)
-        assertEquals("Windows no respondió", (silent.lastResult as CommandResult.Failed).failure.label)
+        assertEquals(R.string.fail_no_response, (silent.lastResult as CommandResult.Failed).failure.label)
     }
 
     @Test
@@ -205,10 +205,10 @@ class ControlStateTest {
         assertEquals(CommandResult.Executed(Command.MEDIA_NEXT_TRACK, 1, Recognition(true, 0.93)), byAi.lastResult)
 
         val ignored = sent.complete(1, CommandOutcome.Failed("NO_GESTURE", "AI"))
-        assertEquals("La IA no vio un gesto", (ignored.lastResult as CommandResult.MovementIgnored).failure.label)
+        assertEquals(R.string.fail_ai_no_gesture, (ignored.lastResult as CommandResult.MovementIgnored).failure.label)
 
         val refused = sent.complete(1, CommandOutcome.Failed("NO_MEDIA_SESSION", "RULES"))
-        assertEquals(CommandResult.Failed(null, RemoteFailure("NO_MEDIA_SESSION", "Abre la música en el equipo")), refused.lastResult)
+        assertEquals(CommandResult.Failed(null, RemoteFailure("NO_MEDIA_SESSION", R.string.fail_no_media)), refused.lastResult)
     }
 
     @Test

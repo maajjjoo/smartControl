@@ -1,3 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos en inglés: idioma por defecto (cualquier idioma del reloj que no sea español). -->
 <resources>
-    <string name="app_name">SmartControl</string>
+    <string name="app_name" translatable="false">SmartControl</string>
+    <!-- Los nombres de idioma se escriben en su propio idioma. -->
+    <string name="language_spanish" translatable="false">Español</string>
+    <string name="language_english" translatable="false">English</string>
+    <string name="mode_presentation">Presentation</string>
+    <string name="mode_multimedia">Multimedia</string>
+    <string name="cmd_slide_next">Next</string>
+    <string name="cmd_slide_previous">Previous</string>
+    <string name="cmd_media_play">Play</string>
+    <string name="cmd_media_pause">Pause</string>
+    <string name="cmd_media_next_track">Next song</string>
+    <string name="cmd_media_previous_track">Previous song</string>
+    <string name="row_next">Next</string>
+    <string name="row_previous">Previous</string>
+    <string name="conn_disconnected">Disconnected</string>
+    <string name="conn_connected">Connected</string>
+    <string name="reject_wrong_mode">Not available in this mode</string>
+    <string name="reject_no_connection">Windows isn\'t connected</string>
+    <string name="fail_no_response">Windows didn\'t respond</string>
+    <string name="fail_not_connected">Connection lost</string>
+    <string name="fail_no_media">Open the music on the computer</string>
+    <string name="fail_media_refused">The player didn\'t respond</string>
+    <string name="fail_input_blocked">Windows blocked the key</string>
+    <string name="fail_unauthorized">Pair the watch again</string>
+    <string name="fail_late">It arrived late; try again</string>
+    <string name="fail_unclear">Unclear gesture</string>
+    <string name="fail_ai_no_gesture">The AI saw no gesture</string>
+    <string name="fail_ai_unsure">The AI isn\'t sure</string>
+    <string name="fail_generic">Windows couldn\'t do it</string>
+    <string name="link_connected">Connected</string>
+    <string name="link_searching">Looking for computer</string>
+    <string name="link_searching_detail">Open SmartControl on Windows</string>
+    <string name="link_searching_short">Searching</string>
+    <string name="link_no_wifi">No Wi-Fi</string>
+    <string name="link_no_wifi_detail">Connect the watch to Wi-Fi</string>
+    <string name="link_pair">Pair</string>
+    <string name="link_pair_detail">Press Pair on %1$s</string>
+    <string name="link_pairing_short">Pairing</string>
+    <string name="link_refused">Not paired</string>
+    <string name="link_refused_detail">Will try again</string>
+    <string name="pairing_title">Pairing code</string>
+    <string name="pairing_code_a11y">Code %1$s</string>
+    <string name="pairing_hint">Check that %1$s shows the same code and press Pair there</string>
+    <string name="swipe_up">Swipe up</string>
+    <string name="gesture_hint">Make a gesture to control your computer</string>
+    <string name="no_gyroscope">This watch has no rotation sensor</string>
+    <string name="gesture_twist_out">Turn outwards</string>
+    <string name="gesture_twist_in">Turn inwards</string>
+    <string name="help_title">How to use it</string>
+    <string name="help_mode">Pick a mode</string>
+    <string name="help_twist">Turn your wrist</string>
+    <string name="help_result">See the result</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="language_system">System</string>
+    <string name="result_done">Done</string>
+    <string name="result_by_ai">" · AI %1$d %%"</string>
+    <string name="result_by_ai_plain">" · AI"</string>
+    <string name="result_by_rules">" · rules"</string>
+    <string name="result_not_recognized">Gesture not recognized</string>
+    <string name="result_failed">Couldn\'t do it</string>
+    <string name="result_accepted">Command accepted</string>
+    <string name="result_try_clearer">Try a clearer turn</string>
+    <string name="feedback_slide_next">Next slide</string>
+    <string name="feedback_slide_previous">Previous slide</string>
+    <string name="feedback_play">Playing</string>
+    <string name="feedback_pause">Paused</string>
+    <string name="feedback_next_track">Next song</string>
+    <string name="feedback_previous_track">Previous song</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.smartcontrol.watch
 
+import androidx.annotation.StringRes
 import com.smartcontrol.watch.gesture.GestureEvent
 import com.smartcontrol.watch.gesture.MIN_GESTURE_CONFIDENCE
 import com.smartcontrol.watch.gesture.UnclearReason
@@ -7,19 +8,20 @@ import com.smartcontrol.watch.gesture.WristGesture
 import com.smartcontrol.watch.link.CommandOutcome
 
 /** Modos de control, con los mismos identificadores que el protocolo. */
-enum class ControlMode(val label: String) {
-    PRESENTATION("Presentación"),
-    MULTIMEDIA("Multimedia"),
+/** [label] es el texto que ve el usuario, en su idioma (strings.xml de res/values y res/values-es). */
+enum class ControlMode(@StringRes val label: Int) {
+    PRESENTATION(R.string.mode_presentation),
+    MULTIMEDIA(R.string.mode_multimedia),
 }
 
 /** Comandos permitidos por modo (lista blanca de docs/security-allowlist.md). */
-enum class Command(val mode: ControlMode, val label: String) {
-    SLIDE_NEXT(ControlMode.PRESENTATION, "Siguiente"),
-    SLIDE_PREVIOUS(ControlMode.PRESENTATION, "Anterior"),
-    MEDIA_PLAY(ControlMode.MULTIMEDIA, "Reproducir"),
-    MEDIA_PAUSE(ControlMode.MULTIMEDIA, "Pausar"),
-    MEDIA_NEXT_TRACK(ControlMode.MULTIMEDIA, "Siguiente canción"),
-    MEDIA_PREVIOUS_TRACK(ControlMode.MULTIMEDIA, "Canción anterior");
+enum class Command(val mode: ControlMode, @StringRes val label: Int) {
+    SLIDE_NEXT(ControlMode.PRESENTATION, R.string.cmd_slide_next),
+    SLIDE_PREVIOUS(ControlMode.PRESENTATION, R.string.cmd_slide_previous),
+    MEDIA_PLAY(ControlMode.MULTIMEDIA, R.string.cmd_media_play),
+    MEDIA_PAUSE(ControlMode.MULTIMEDIA, R.string.cmd_media_pause),
+    MEDIA_NEXT_TRACK(ControlMode.MULTIMEDIA, R.string.cmd_media_next_track),
+    MEDIA_PREVIOUS_TRACK(ControlMode.MULTIMEDIA, R.string.cmd_media_previous_track);
 
     companion object {
         fun forMode(mode: ControlMode): List<Command> = entries.filter { it.mode == mode }
@@ -30,42 +32,43 @@ enum class Command(val mode: ControlMode, val label: String) {
  * Si hay una conexión con Windows lista para recibir comandos. Lo decide la conexión real
  * (WindowsLink): la interfaz nunca muestra una conexión que no existe.
  */
-enum class ConnectionStatus(val label: String) {
-    DISCONNECTED("Desconectado"),
-    CONNECTED("Conectado"),
+enum class ConnectionStatus(@StringRes val label: Int) {
+    DISCONNECTED(R.string.conn_disconnected),
+    CONNECTED(R.string.conn_connected),
 }
 
-/** Motivo de rechazo. [label] es el texto para el usuario; el nombre del enum va solo al registro. */
-enum class RejectReason(val label: String) {
+/** Motivo de rechazo. [label] es el texto para el usuario (en su idioma); el nombre del enum va solo al registro. */
+enum class RejectReason(@StringRes val label: Int) {
     /** Equivale a REJECTED_NOT_ALLOWED: el comando no pertenece al modo activo. */
-    WRONG_MODE("No disponible en este modo"),
-    NO_CONNECTION("Windows no está conectado"),
+    WRONG_MODE(R.string.reject_wrong_mode),
+    NO_CONNECTION(R.string.reject_no_connection),
 }
 
 /**
  * Motivo por el que Windows no realizó un comando, ya traducido para el usuario. [code] es el
  * código de Windows y solo va al registro de diagnóstico.
  */
-data class RemoteFailure(val code: String, val label: String) {
+data class RemoteFailure(val code: String, @StringRes val label: Int) {
     companion object {
         fun from(outcome: CommandOutcome): RemoteFailure = when (outcome) {
             is CommandOutcome.Failed -> RemoteFailure(outcome.reasonCode, labelFor(outcome.reasonCode))
-            CommandOutcome.NoResponse -> RemoteFailure("NO_RESPONSE", "Windows no respondió")
-            CommandOutcome.NotConnected -> RemoteFailure("NOT_CONNECTED", "Se perdió la conexión")
-            is CommandOutcome.Executed -> RemoteFailure("OK", "")
+            CommandOutcome.NoResponse -> RemoteFailure("NO_RESPONSE", R.string.fail_no_response)
+            CommandOutcome.NotConnected -> RemoteFailure("NOT_CONNECTED", R.string.fail_not_connected)
+            is CommandOutcome.Executed -> RemoteFailure("OK", R.string.fail_generic)
         }
 
-        private fun labelFor(code: String): String = when (code) {
-            "NO_MEDIA_SESSION" -> "Abre la música en el equipo"
-            "MEDIA_COMMAND_REFUSED" -> "El reproductor no respondió"
-            "INPUT_BLOCKED" -> "Windows bloqueó la tecla"
-            "UNAUTHORIZED_DEVICE", "INVALID_SESSION_TOKEN" -> "Hay que volver a vincular"
-            "STALE_MESSAGE", "FUTURE_TIMESTAMP" -> "Llegó tarde; inténtalo otra vez"
-            "MODE_ACTION_MISMATCH", "RECEIVER_MODE_MISMATCH", "ACTION_NOT_IN_ALLOWLIST" -> "No disponible en este modo"
-            "BELOW_THRESHOLD" -> "Gesto poco claro"
-            "NO_GESTURE" -> "La IA no vio un gesto"
-            "LOW_CONFIDENCE" -> "La IA no está segura"
-            else -> "Windows no pudo hacerlo"
+        @StringRes
+        private fun labelFor(code: String): Int = when (code) {
+            "NO_MEDIA_SESSION" -> R.string.fail_no_media
+            "MEDIA_COMMAND_REFUSED" -> R.string.fail_media_refused
+            "INPUT_BLOCKED" -> R.string.fail_input_blocked
+            "UNAUTHORIZED_DEVICE", "INVALID_SESSION_TOKEN" -> R.string.fail_unauthorized
+            "STALE_MESSAGE", "FUTURE_TIMESTAMP" -> R.string.fail_late
+            "MODE_ACTION_MISMATCH", "RECEIVER_MODE_MISMATCH", "ACTION_NOT_IN_ALLOWLIST" -> R.string.reject_wrong_mode
+            "BELOW_THRESHOLD" -> R.string.fail_unclear
+            "NO_GESTURE" -> R.string.fail_ai_no_gesture
+            "LOW_CONFIDENCE" -> R.string.fail_ai_unsure
+            else -> R.string.fail_generic
         }
     }
 }
@@ -184,7 +187,7 @@ data class ControlState(
                 if (command != null) {
                     CommandResult.Executed(command, sequence, recognition)
                 } else {
-                    CommandResult.Failed(null, RemoteFailure("UNKNOWN_ACTION", "Windows no pudo hacerlo"))
+                    CommandResult.Failed(null, RemoteFailure("UNKNOWN_ACTION", R.string.fail_generic))
                 }
             }
             is CommandOutcome.Failed ->

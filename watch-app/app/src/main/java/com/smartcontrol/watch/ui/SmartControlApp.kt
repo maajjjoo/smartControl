@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -84,6 +85,7 @@ import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.CommandLog
 import com.smartcontrol.watch.CommandResult
 import com.smartcontrol.watch.ConnectionStatus
+import com.smartcontrol.watch.R
 import com.smartcontrol.watch.SCREEN_TAP_ID
 import com.smartcontrol.watch.gestureFor
 import com.smartcontrol.watch.link.CommandOutcome
@@ -334,12 +336,21 @@ private fun Modifier.pageTransition(pagerState: PagerState, page: Int): Modifier
 /** Textos de la conexión para la pantalla de Inicio. */
 private data class LinkText(val title: String, val detail: String, val short: String, val connected: Boolean)
 
+@Composable
 private fun linkText(link: LinkState): LinkText = when (link) {
-    is LinkState.Connected -> LinkText("Conectado", link.pcName, "Conectado", true)
-    LinkState.Searching -> LinkText("Buscando equipo", "Abre SmartControl en Windows", "Buscando", false)
-    LinkState.NoWifi -> LinkText("Sin Wi-Fi", "Conecta el reloj al Wi-Fi", "Sin Wi-Fi", false)
-    is LinkState.Pairing -> LinkText("Vincular", "Pulsa Vincular en ${link.pcName}", "Vinculando", false)
-    is LinkState.PairingRefused -> LinkText("No vinculado", "Se volverá a intentar", "No vinculado", false)
+    is LinkState.Connected -> LinkText(stringResource(R.string.link_connected), link.pcName, stringResource(R.string.link_connected), true)
+    LinkState.Searching -> LinkText(
+        stringResource(R.string.link_searching), stringResource(R.string.link_searching_detail), stringResource(R.string.link_searching_short), false,
+    )
+    LinkState.NoWifi -> LinkText(
+        stringResource(R.string.link_no_wifi), stringResource(R.string.link_no_wifi_detail), stringResource(R.string.link_no_wifi), false,
+    )
+    is LinkState.Pairing -> LinkText(
+        stringResource(R.string.link_pair), stringResource(R.string.link_pair_detail, link.pcName), stringResource(R.string.link_pairing_short), false,
+    )
+    is LinkState.PairingRefused -> LinkText(
+        stringResource(R.string.link_refused), stringResource(R.string.link_refused_detail), stringResource(R.string.link_refused), false,
+    )
 }
 
 @Composable
@@ -352,7 +363,7 @@ private fun HomePage(link: LinkState) {
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
         BasicText(
-            text = "SmartControl",
+            text = stringResource(R.string.app_name),
             style = TextStyle(
                 color = SmartColors.Brand.main,
                 fontSize = 19.sp,
@@ -382,8 +393,9 @@ private fun HomePage(link: LinkState) {
  */
 @Composable
 private fun PairingCode(link: LinkState.Pairing) {
+    val spokenCode = stringResource(R.string.pairing_code_a11y, link.code.toCharArray().joinToString(" "))
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 26.dp)) {
-        Text("Código de vinculación", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SmartColors.TextMuted)
+        Text(stringResource(R.string.pairing_title), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SmartColors.TextMuted)
         Spacer(Modifier.height(4.dp))
         Text(
             link.code,
@@ -391,11 +403,12 @@ private fun PairingCode(link: LinkState.Pairing) {
             fontWeight = FontWeight.Bold,
             letterSpacing = 4.sp,
             color = SmartColors.Brand.onSoft,
-            modifier = Modifier.semantics { contentDescription = "Código ${link.code.toCharArray().joinToString(" ")}" },
+            // Las cifras separadas para que el lector de pantalla las lea una a una.
+            modifier = Modifier.semantics { contentDescription = spokenCode },
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            "Comprueba que ${link.pcName} muestra el mismo y pulsa Vincular allí",
+            stringResource(R.string.pairing_hint, link.pcName),
             fontSize = 12.sp,
             color = SmartColors.Text,
             textAlign = TextAlign.Center,
@@ -455,7 +468,7 @@ private fun SwipeHint() {
                 .graphicsLayer { translationY = -shift * 3.dp.toPx() },
         )
         Spacer(Modifier.width(4.dp))
-        Text("Desliza hacia arriba", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = SmartColors.Brand.onSoft)
+        Text(stringResource(R.string.swipe_up), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = SmartColors.Brand.onSoft)
     }
 }
 
@@ -477,7 +490,7 @@ private fun GesturePage(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(mode.icon, contentDescription = null, tint = tone.main, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
-            Text(mode.label, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.onSoft)
+            Text(stringResource(mode.label), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.onSoft)
         }
         Spacer(Modifier.height(2.dp))
         if (mode == ControlMode.MULTIMEDIA) {
@@ -491,7 +504,7 @@ private fun GesturePage(
             }
         } else {
             Text(
-                if (gesturesAvailable) "Realiza un gesto para controlar tu equipo" else "Este reloj no tiene sensor de giro",
+                stringResource(if (gesturesAvailable) R.string.gesture_hint else R.string.no_gyroscope),
                 fontSize = 12.sp,
                 color = SmartColors.TextMuted,
                 textAlign = TextAlign.Center,
@@ -577,6 +590,7 @@ private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, 
 @Composable
 private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit) {
     val tone = SmartColors.forCommand(command)
+    val description = stringResource(command.label)
     val flash = remember { Animatable(0f) }
     LaunchedEffect(flashKey) {
         if (flashKey != null) {
@@ -596,7 +610,7 @@ private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit
             .clip(CircleShape)
             .background(tone.main)
             .clickable(onClick = onClick, role = Role.Button)
-            .semantics { contentDescription = command.label },
+            .semantics { contentDescription = description },
     ) {
         Icon(
             if (command == Command.MEDIA_PLAY) SmartIcons.Play else SmartIcons.Pause,
@@ -612,17 +626,21 @@ private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit
  * canciones, y así las dos filas caben enteras en la pantalla redonda.
  */
 private val Command.rowLabel: String
-    get() = when (this) {
-        Command.SLIDE_NEXT, Command.MEDIA_NEXT_TRACK -> "Siguiente"
-        Command.SLIDE_PREVIOUS, Command.MEDIA_PREVIOUS_TRACK -> "Anterior"
-        else -> label
-    }
+    @Composable get() = stringResource(
+        when (this) {
+            Command.SLIDE_NEXT, Command.MEDIA_NEXT_TRACK -> R.string.row_next
+            Command.SLIDE_PREVIOUS, Command.MEDIA_PREVIOUS_TRACK -> R.string.row_previous
+            else -> label
+        },
+    )
 
 private val WristGesture.label: String
-    get() = when (this) {
-        WristGesture.TWIST_OUT -> "Gira hacia fuera"
-        WristGesture.TWIST_IN -> "Gira hacia dentro"
-    }
+    @Composable get() = stringResource(
+        when (this) {
+            WristGesture.TWIST_OUT -> R.string.gesture_twist_out
+            WristGesture.TWIST_IN -> R.string.gesture_twist_in
+        },
+    )
 
 private val WristGesture.icon: ImageVector
     get() = when (this) {
@@ -641,13 +659,13 @@ private fun HelpPage() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(SmartIcons.Help, contentDescription = null, tint = SmartColors.Brand.main, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Cómo usarlo", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
+            Text(stringResource(R.string.help_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
         }
         Spacer(Modifier.height(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            HelpStep(SmartIcons.Swipe, SmartColors.Brand, "Elige un modo")
-            HelpStep(SmartIcons.TwistOut, SmartColors.Brand, "Gira la muñeca")
-            HelpStep(SmartIcons.Check, SmartColors.Brand, "Mira el resultado")
+            HelpStep(SmartIcons.Swipe, SmartColors.Brand, stringResource(R.string.help_mode))
+            HelpStep(SmartIcons.TwistOut, SmartColors.Brand, stringResource(R.string.help_twist))
+            HelpStep(SmartIcons.Check, SmartColors.Brand, stringResource(R.string.help_result))
         }
     }
 }
@@ -667,14 +685,14 @@ private fun SettingsPage(settings: SettingsState) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(SmartIcons.Settings, contentDescription = null, tint = SmartColors.Brand.main, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Ajustes", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
+            Text(stringResource(R.string.settings_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
         }
         Spacer(Modifier.height(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SettingRow(SmartIcons.Theme, "Tema", settings.theme.label) {
+            SettingRow(SmartIcons.Theme, stringResource(R.string.settings_theme), settings.theme.label) {
                 settings.onTheme(settings.theme.next(ThemeChoice.entries))
             }
-            SettingRow(SmartIcons.Language, "Idioma", settings.language.label) {
+            SettingRow(SmartIcons.Language, stringResource(R.string.settings_language), settings.language.label) {
                 settings.onLanguage(settings.language.next(LanguageChoice.entries))
             }
         }
@@ -682,18 +700,22 @@ private fun SettingsPage(settings: SettingsState) {
 }
 
 private val ThemeChoice.label: String
-    get() = when (this) {
-        ThemeChoice.SYSTEM -> "Sistema"
-        ThemeChoice.LIGHT -> "Claro"
-        ThemeChoice.DARK -> "Oscuro"
-    }
+    @Composable get() = stringResource(
+        when (this) {
+            ThemeChoice.SYSTEM -> R.string.theme_system
+            ThemeChoice.LIGHT -> R.string.theme_light
+            ThemeChoice.DARK -> R.string.theme_dark
+        },
+    )
 
 private val LanguageChoice.label: String
-    get() = when (this) {
-        LanguageChoice.SYSTEM -> "Sistema"
-        LanguageChoice.SPANISH -> "Español"
-        LanguageChoice.ENGLISH -> "English"
-    }
+    @Composable get() = stringResource(
+        when (this) {
+            LanguageChoice.SYSTEM -> R.string.language_system
+            LanguageChoice.SPANISH -> R.string.language_spanish
+            LanguageChoice.ENGLISH -> R.string.language_english
+        },
+    )
 
 /** Fila de ajuste: icono, nombre y valor actual en el color principal. Tocarla cambia el valor. */
 @Composable
@@ -888,57 +910,61 @@ private fun resultStyle(result: CommandResult?): ResultStyle? = when (result) {
     is CommandResult.Executed -> ResultStyle(
         icon = SmartIcons.Check,
         tone = SmartColors.Success,
-        title = "Hecho",
+        title = stringResource(R.string.result_done),
         detail = result.command.feedbackLabel + when {
             result.recognition == null -> ""
-            result.recognition.byAi -> result.recognition.confidence?.let { " · IA ${Math.round(it * 100)} %" } ?: " · IA"
-            else -> " · reglas"
+            result.recognition.byAi -> result.recognition.confidence
+                ?.let { stringResource(R.string.result_by_ai, Math.round(it * 100).toInt()) }
+                ?: stringResource(R.string.result_by_ai_plain)
+            else -> stringResource(R.string.result_by_rules)
         },
     )
     is CommandResult.MovementIgnored -> ResultStyle(
         icon = SmartIcons.Close,
         tone = SmartColors.Rejected,
-        title = "Gesto no reconocido",
-        detail = result.failure.label,
+        title = stringResource(R.string.result_not_recognized),
+        detail = stringResource(result.failure.label),
     )
     is CommandResult.Failed -> ResultStyle(
         icon = SmartIcons.Close,
         tone = SmartColors.Rejected,
-        title = "No se pudo realizar la acción",
-        detail = result.failure.label,
+        title = stringResource(R.string.result_failed),
+        detail = stringResource(result.failure.label),
     )
     // Solo en pruebas sin Windows: pasó la validación, pero no se envió a ningún equipo.
     is CommandResult.Simulated -> ResultStyle(
         icon = SmartIcons.Check,
         tone = SmartColors.Success,
-        title = "Comando aceptado",
+        title = stringResource(R.string.result_accepted),
         detail = result.command.feedbackLabel,
     )
     is CommandResult.Rejected -> ResultStyle(
         icon = SmartIcons.Close,
         tone = SmartColors.Rejected,
-        title = "No se pudo realizar la acción",
-        detail = result.reason.label,
+        title = stringResource(R.string.result_failed),
+        detail = stringResource(result.reason.label),
     )
     // Un movimiento que no supera las reglas o el umbral de confianza no genera ningún comando.
     is CommandResult.GestureUnrecognized -> ResultStyle(
         icon = SmartIcons.Close,
         tone = SmartColors.Rejected,
-        title = "Gesto no reconocido",
-        detail = "Prueba con un giro más claro",
+        title = stringResource(R.string.result_not_recognized),
+        detail = stringResource(R.string.result_try_clearer),
     )
 }
 
 /** Descripción natural de cada acción para los mensajes de resultado. */
 private val Command.feedbackLabel: String
-    get() = when (this) {
-        Command.SLIDE_NEXT -> "Diapositiva siguiente"
-        Command.SLIDE_PREVIOUS -> "Diapositiva anterior"
-        Command.MEDIA_PLAY -> "Reproducción"
-        Command.MEDIA_PAUSE -> "Pausa"
-        Command.MEDIA_NEXT_TRACK -> "Siguiente canción"
-        Command.MEDIA_PREVIOUS_TRACK -> "Canción anterior"
-    }
+    @Composable get() = stringResource(
+        when (this) {
+            Command.SLIDE_NEXT -> R.string.feedback_slide_next
+            Command.SLIDE_PREVIOUS -> R.string.feedback_slide_previous
+            Command.MEDIA_PLAY -> R.string.feedback_play
+            Command.MEDIA_PAUSE -> R.string.feedback_pause
+            Command.MEDIA_NEXT_TRACK -> R.string.feedback_next_track
+            Command.MEDIA_PREVIOUS_TRACK -> R.string.feedback_previous_track
+        },
+    )
 
 @Composable
 private fun IconBadge(
