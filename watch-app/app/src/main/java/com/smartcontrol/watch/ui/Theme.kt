@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material3.ColorScheme
 import androidx.wear.compose.material3.MaterialTheme
@@ -28,19 +29,22 @@ data class Tone(
 )
 
 /*
- * Diseño minimalista con un solo color principal (decisión del 2026-11-22): vinotinto para todo lo
- * que se toca o está activo, su versión rosada para fondos suaves, y el resto en grises neutros.
- * La única excepción es el error: un rojo más vivo, siempre sobre gris y con una X, para que no se
- * confunda con el vinotinto de un acierto (que va sobre rosado y con una ✓).
+ * Diseño con un solo color que llena toda la pantalla: el vinotinto es el fondo (un degradado con un
+ * brillo suave en el centro), los textos son blancos, las filas son de "cristal" (blanco
+ * translúcido) y los círculos son blancos con el icono en vinotinto. El error usa gris grafito y
+ * una X roja, para que nunca se confunda con un acierto.
  *
- * Hay dos paletas, clara y oscura, con los mismos significados. En la oscura el fondo es casi negro
- * (ahorra batería en pantallas OLED) y el vinotinto se aclara a un rosa vino que se lee sobre negro.
+ * Dos paletas con el mismo vinotinto: la clara es más luminosa y la oscura más profunda (gasta
+ * menos batería en pantallas OLED).
  */
 
-/** Una paleta completa: base neutra y las tres familias de color. */
+private val Wine = Color(0xFF8E1C3A)
+
+/** Una paleta completa: fondo degradado ([glow] en el centro, [background] en el borde) y colores. */
 @Immutable
 data class SmartPalette(
     val background: Color,
+    val glow: Color,
     val surface: Color,
     val text: Color,
     val textMuted: Color,
@@ -50,46 +54,47 @@ data class SmartPalette(
     val error: Tone,
 )
 
-/** Paleta clara. Contraste del texto vinotinto sobre blanco ≥ 9:1. */
+/** Paleta clara: vinotinto luminoso. Texto blanco sobre vinotinto ≥ 8:1. */
 val LightPalette = SmartPalette(
-    background = Color(0xFFFFFFFF),
-    surface = Color(0xFFF4F4F5),
-    text = Color(0xFF18181B),
-    textMuted = Color(0xFF63636B),
-    outline = Color(0xFFE4E4E7),
+    background = Color(0xFF6E1530),
+    glow = Color(0xFFB02A52),
+    surface = Color.White.copy(alpha = 0.14f),
+    text = Color.White,
+    textMuted = Color.White.copy(alpha = 0.75f),
+    outline = Color.White.copy(alpha = 0.30f),
     wine = Tone(
-        main = Color(0xFF8E1C3A), dark = Color(0xFF761530),
-        soft = Color(0xFFFBEAF0), onMain = Color.White, onSoft = Color(0xFF6E1530),
+        main = Color.White, dark = Color(0xFFF4F4F5),
+        soft = Wine, onMain = Wine, onSoft = Color.White,
     ),
     neutral = Tone(
-        main = Color(0xFF71717A), dark = Color(0xFF52525B),
-        soft = Color(0xFFF4F4F5), onMain = Color.White, onSoft = Color(0xFF3F3F46),
+        main = Color.White.copy(alpha = 0.22f), dark = Color.White.copy(alpha = 0.30f),
+        soft = Color.White.copy(alpha = 0.14f), onMain = Color.White, onSoft = Color.White.copy(alpha = 0.85f),
     ),
-    // Error discreto: X roja ([onMain]) sobre un círculo blanco ([main]), fondo y texto grises.
     error = Tone(
         main = Color.White, dark = Color.White,
-        soft = Color(0xFFF4F4F5), onMain = Color(0xFFC62828), onSoft = Color(0xFF3F3F46),
+        soft = Color(0xFF26262A), onMain = Color(0xFFC62828), onSoft = Color.White,
     ),
 )
 
-/** Paleta oscura. Rosa vino sobre casi negro ≥ 7:1; texto claro sobre fondo oscuro ≥ 15:1. */
+/** Paleta oscura: el mismo vinotinto, más profundo. */
 val DarkPalette = SmartPalette(
-    background = Color(0xFF0E0E10),
-    surface = Color(0xFF1C1C1F),
-    text = Color(0xFFF4F4F5),
-    textMuted = Color(0xFFA1A1AA),
-    outline = Color(0xFF2E2E33),
+    background = Color(0xFF1E0610),
+    glow = Color(0xFF5E1229),
+    surface = Color.White.copy(alpha = 0.09f),
+    text = Color.White,
+    textMuted = Color.White.copy(alpha = 0.70f),
+    outline = Color.White.copy(alpha = 0.22f),
     wine = Tone(
-        main = Color(0xFFEC7A99), dark = Color(0xFFD9607F),
-        soft = Color(0xFF3A1622), onMain = Color(0xFF1A0710), onSoft = Color(0xFFF7C6D4),
+        main = Color.White, dark = Color(0xFFF4F4F5),
+        soft = Color(0xFF4A0E20), onMain = Wine, onSoft = Color.White,
     ),
     neutral = Tone(
-        main = Color(0xFF8E8E96), dark = Color(0xFF71717A),
-        soft = Color(0xFF1C1C1F), onMain = Color(0xFF0E0E10), onSoft = Color(0xFFD4D4D8),
+        main = Color.White.copy(alpha = 0.16f), dark = Color.White.copy(alpha = 0.24f),
+        soft = Color.White.copy(alpha = 0.09f), onMain = Color.White, onSoft = Color.White.copy(alpha = 0.85f),
     ),
     error = Tone(
-        main = Color(0xFF2A2A2E), dark = Color(0xFF2A2A2E),
-        soft = Color(0xFF1C1C1F), onMain = Color(0xFFFF6B6B), onSoft = Color(0xFFD4D4D8),
+        main = Color(0xFF2E2E33), dark = Color(0xFF2E2E33),
+        soft = Color(0xFF141416), onMain = Color(0xFFFF6B6B), onSoft = Color.White,
     ),
 )
 
@@ -101,6 +106,10 @@ private val LocalPalette = staticCompositionLocalOf { LightPalette }
  */
 object SmartColors {
     val Background: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.background
+
+    /** Fondo de pantalla: degradado radial vinotinto, más brillante en el centro. */
+    val BackgroundBrush: Brush
+        @Composable @ReadOnlyComposable get() = LocalPalette.current.let { Brush.radialGradient(listOf(it.glow, it.background)) }
     val Surface: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.surface
     val Text: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.text
     val TextMuted: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.textMuted
@@ -129,7 +138,7 @@ object SmartColors {
 private fun colorScheme(p: SmartPalette) = ColorScheme(
     primary = p.wine.main,
     primaryDim = p.wine.dark,
-    primaryContainer = p.wine.soft,
+    primaryContainer = p.surface,
     onPrimary = p.wine.onMain,
     onPrimaryContainer = p.wine.onSoft,
     secondary = p.wine.main,
@@ -138,7 +147,7 @@ private fun colorScheme(p: SmartPalette) = ColorScheme(
     onSecondaryContainer = p.wine.onSoft,
     surfaceContainerLow = p.surface,
     surfaceContainer = p.surface,
-    surfaceContainerHigh = p.wine.soft,
+    surfaceContainerHigh = p.surface,
     onSurface = p.text,
     onSurfaceVariant = p.textMuted,
     outline = p.outline,

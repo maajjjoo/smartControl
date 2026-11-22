@@ -1,14 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Icono provisional: círculo con un triángulo de "reproducir/avanzar". -->
+<!--
+  Icono de SmartControl: un reloj (izquierda) envía una señal a la pantalla del computador
+  (derecha), que muestra "reproducir". Vinotinto con blanco, como el resto de la app.
+  La misma figura está en windows-app (Assets/SmartControl.ico).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="48dp"
     android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- Fondo -->
     <path
-        android:fillColor="#1E88E5"
-        android:pathData="M24,2a22,22 0,1 1,0 44a22,22 0,1 1,0 -44z" />
+        android:fillColor="#8E1C3A"
+        android:pathData="M60,0a60,60 0,1 1,0 120a60,60 0,1 1,0 -120z" />
+    <!-- La figura a su tamaño: el lanzador del reloj ya amplía y recorta el icono. -->
+    <group>
+    <!-- Reloj: correas y caja -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M19,15L33,24L19,33z" />
+        android:pathData="M24,38h6a2,2 0,0 1,2 2v5h-10v-5a2,2 0,0 1,2 -2z M22,75h10v5a2,2 0,0 1,-2 2h-6a2,2 0,0 1,-2 -2z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:pathData="M24,44h6a7,7 0,0 1,7 7v18a7,7 0,0 1,-7 7h-6a7,7 0,0 1,-7 -7v-18a7,7 0,0 1,7 -7z" />
+    <!-- Señal -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M44,52A12,12 0,0 1,44 68" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.65"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M51,47A19,19 0,0 1,51 73" />
+    <!-- Pantalla con pie -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,40h36a4,4 0,0 1,4 4v22a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-22a4,4 0,0 1,4 -4z M78,70h8v9h-8z M72.5,79h19a2.5,2.5 0,0 1,0 5h-19a2.5,2.5 0,0 1,0 -5z" />
+    <!-- Reproducir -->
+    <path
+        android:fillColor="#8E1C3A"
+        android:pathData="M76,48L76,62L88,55z" />
+    </group>
 </vector>

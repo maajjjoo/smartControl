@@ -27,6 +27,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,7 +41,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -70,7 +70,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -114,8 +113,24 @@ private enum class Page(val mode: ControlMode?) {
     HOME(null),
     PRESENTATION(ControlMode.PRESENTATION),
     MULTIMEDIA(ControlMode.MULTIMEDIA),
-    HELP(null),
     SETTINGS(null),
+}
+
+/* Medidas comunes: todas las pantallas usan la misma cabecera y filas del mismo tamaño. */
+private val PAGE_PADDING = 28.dp
+private val ROW_GAP = 6.dp
+private val ROW_ICON = 28.dp
+private val ROW_TEXT = 14.sp
+private val ROW_PADDING = PaddingValues(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 4.dp)
+
+/** Cabecera de cada pantalla: icono pequeño y título, en una línea. */
+@Composable
+private fun PageHeader(icon: ImageVector, title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+        Icon(icon, contentDescription = null, tint = SmartColors.Brand.onSoft, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
+    }
 }
 
 /** Duración de la ventana de confirmación antes de cerrarse sola. */
@@ -265,7 +280,7 @@ fun SmartControlScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SmartColors.Background),
+            .background(SmartColors.BackgroundBrush),
     ) {
         VerticalPager(
             state = pagerState,
@@ -291,7 +306,6 @@ fun SmartControlScreen(
             ) {
                 when (val page = Page.entries[index]) {
                     Page.HOME -> HomePage(link)
-                    Page.HELP -> HelpPage()
                     Page.SETTINGS -> SettingsPage(settings)
                     else -> GesturePage(
                         mode = page.mode!!,
@@ -362,27 +376,14 @@ private fun HomePage(link: LinkState) {
         return
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
-        BasicText(
-            text = stringResource(R.string.app_name),
-            style = TextStyle(
-                color = SmartColors.Brand.main,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            ),
-        )
-        Spacer(Modifier.height(6.dp))
         StatusRing(tone)
-        Spacer(Modifier.height(6.dp))
-        Text(text.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.main)
-        Text(
-            text.detail,
-            fontSize = 12.sp,
-            color = SmartColors.TextMuted,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-        )
         Spacer(Modifier.height(10.dp))
+        Text(text.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = tone.onSoft, textAlign = TextAlign.Center)
+        // Solo el nombre del equipo cuando ya está conectado; si falta algo, el título lo dice.
+        if (text.connected) {
+            Text(text.detail, fontSize = 13.sp, color = SmartColors.TextMuted, textAlign = TextAlign.Center, maxLines = 1)
+        }
+        Spacer(Modifier.height(14.dp))
         SwipeHint()
     }
 }
@@ -429,7 +430,7 @@ private fun StatusRing(tone: Tone) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(62.dp)
+            .size(50.dp)
             .drawBehind {
                 drawCircle(
                     color = tone.main.copy(alpha = lerp(0.12f, 0.35f, pulse)),
@@ -438,11 +439,11 @@ private fun StatusRing(tone: Tone) {
                 )
             },
     ) {
-        IconBadge(SmartIcons.Computer, tint = tone.main, background = tone.soft, size = 46.dp)
+        IconBadge(SmartIcons.Computer, tint = tone.onMain, background = tone.main, size = 36.dp)
     }
 }
 
-/** Invitación a deslizar, con una flecha que sube y baja suavemente. */
+/** Invitación a deslizar: solo una flecha que sube y baja suavemente. */
 @Composable
 private fun SwipeHint() {
     val nudge = rememberInfiniteTransition()
@@ -451,29 +452,18 @@ private fun SwipeHint() {
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
     )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Icon(
+        SmartIcons.Up,
+        contentDescription = stringResource(R.string.swipe_up),
+        tint = SmartColors.Brand.onSoft,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(SmartColors.Surface)
-            .border(1.dp, SmartColors.Outline, RoundedCornerShape(50))
-            .padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
-    ) {
-        Icon(
-            SmartIcons.Up,
-            contentDescription = null,
-            tint = SmartColors.Brand.main,
-            modifier = Modifier
-                .size(18.dp)
-                .graphicsLayer { translationY = -shift * 3.dp.toPx() },
-        )
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(R.string.swipe_up), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = SmartColors.Brand.onSoft)
-    }
+            .size(18.dp)
+            .graphicsLayer { translationY = -shift * 4.dp.toPx() },
+    )
 }
 
 /**
- * Pantalla de un modo: indicación de usar gestos, guía con los dos gestos y estado de conexión.
+ * Pantalla de un modo: los dos gestos (el icono hace el giro) y, solo si falta, el aviso de conexión.
  * Cada fila de la guía también responde al toque (alternativa de prueba, sin indicarlo en pantalla).
  */
 @Composable
@@ -486,32 +476,27 @@ private fun GesturePage(
     onCommand: (Command) -> Unit,
 ) {
     val tone = SmartColors.forMode(mode)
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 26.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(mode.icon, contentDescription = null, tint = tone.main, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(mode.label), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone.onSoft)
-        }
-        Spacer(Modifier.height(2.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = PAGE_PADDING)) {
+        PageHeader(mode.icon, stringResource(mode.label))
         if (mode == ControlMode.MULTIMEDIA) {
-            // Reproducir y pausar no tienen gesto: dos botones grandes, órdenes distintas (sin alternar).
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Reproducir y pausar no tienen gesto: dos botones, órdenes distintas (sin alternar).
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(bottom = ROW_GAP)) {
                 listOf(Command.MEDIA_PLAY, Command.MEDIA_PAUSE).forEach { command ->
                     val done = (lastResult as? CommandResult.Executed)?.command == command ||
                         (lastResult as? CommandResult.Simulated)?.command == command
                     PlaybackButton(command, flashKey = if (done) feedbackTick else null, onClick = { onCommand(command) })
                 }
             }
-        } else {
+        } else if (!gesturesAvailable) {
             Text(
-                stringResource(if (gesturesAvailable) R.string.gesture_hint else R.string.no_gyroscope),
+                stringResource(R.string.no_gyroscope),
                 fontSize = 12.sp,
                 color = SmartColors.TextMuted,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = ROW_GAP),
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
             WristGesture.entries.forEach { gesture ->
                 val command = commandFor(mode, gesture)
                 val justDone = (lastResult as? CommandResult.Simulated)?.command == command ||
@@ -524,8 +509,10 @@ private fun GesturePage(
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        ConnectionChip(link)
+        if (link !is LinkState.Connected) {
+            Spacer(Modifier.height(8.dp))
+            ConnectionChip(link)
+        }
     }
 }
 
@@ -533,6 +520,7 @@ private fun GesturePage(
 @Composable
 private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, onClick: () -> Unit) {
     val tone = SmartColors.forCommand(command)
+    val description = "${command.rowLabel}, ${gesture.label}"
     val demo = rememberInfiniteTransition()
     val swing by demo.animateFloat(
         initialValue = 0f,
@@ -557,14 +545,15 @@ private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, 
             }
             .clip(RoundedCornerShape(50))
             .background(lerp(SmartColors.Surface, tone.soft, flash.value))
-            .border(1.dp, lerp(SmartColors.Outline, tone.main, flash.value), RoundedCornerShape(50))
+            .border(1.dp, lerp(SmartColors.Surface, tone.main, flash.value), RoundedCornerShape(50))
             .clickable(onClick = onClick, role = Role.Button)
-            .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+            .semantics(mergeDescendants = true) { contentDescription = description }
+            .padding(ROW_PADDING),
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(34.dp)
+                .size(ROW_ICON)
                 .clip(CircleShape)
                 .background(tone.main),
         ) {
@@ -573,16 +562,13 @@ private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, 
                 contentDescription = null,
                 tint = tone.onMain,
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(ROW_ICON * 0.55f)
                     // Demostración del gesto: el icono gira suavemente en su sentido.
                     .graphicsLayer { rotationZ = gesture.direction * lerp(-18f, 18f, swing) },
             )
         }
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(command.rowLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = tone.onSoft, maxLines = 1)
-            Text(gesture.label, fontSize = 12.sp, color = SmartColors.TextMuted, maxLines = 1)
-        }
+        Spacer(Modifier.width(10.dp))
+        Text(command.rowLabel, fontSize = ROW_TEXT, fontWeight = FontWeight.Bold, color = tone.onSoft, maxLines = 1)
     }
 }
 
@@ -601,7 +587,7 @@ private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(38.dp)
+            .size(32.dp)
             .graphicsLayer {
                 val grow = 1f + 0.12f * flash.value
                 scaleX = grow
@@ -616,7 +602,7 @@ private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit
             if (command == Command.MEDIA_PLAY) SmartIcons.Play else SmartIcons.Pause,
             contentDescription = null,
             tint = tone.onMain,
-            modifier = Modifier.size(19.dp),
+            modifier = Modifier.size(16.dp),
         )
     }
 }
@@ -652,24 +638,6 @@ private val WristGesture.icon: ImageVector
 private val WristGesture.direction: Float
     get() = if (this == WristGesture.TWIST_OUT) 1f else -1f
 
-/** Ayuda: tres pasos para usar la app, cada uno con su icono. */
-@Composable
-private fun HelpPage() {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(SmartIcons.Help, contentDescription = null, tint = SmartColors.Brand.main, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.help_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
-        }
-        Spacer(Modifier.height(10.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            HelpStep(SmartIcons.Swipe, SmartColors.Brand, stringResource(R.string.help_mode))
-            HelpStep(SmartIcons.TwistOut, SmartColors.Brand, stringResource(R.string.help_twist))
-            HelpStep(SmartIcons.Check, SmartColors.Brand, stringResource(R.string.help_result))
-        }
-    }
-}
-
 /** Ajustes actuales y cómo cambiarlos (los guarda la actividad). */
 data class SettingsState(
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
@@ -681,14 +649,9 @@ data class SettingsState(
 /** Ajustes: tema e idioma. Cada fila cambia a la siguiente opción al tocarla. */
 @Composable
 private fun SettingsPage(settings: SettingsState) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(SmartIcons.Settings, contentDescription = null, tint = SmartColors.Brand.main, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.settings_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
-        }
-        Spacer(Modifier.height(10.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = PAGE_PADDING)) {
+        PageHeader(SmartIcons.Settings, stringResource(R.string.settings_title))
+        Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
             SettingRow(SmartIcons.Theme, stringResource(R.string.settings_theme), settings.theme.label) {
                 settings.onTheme(settings.theme.next(ThemeChoice.entries))
             }
@@ -717,7 +680,7 @@ private val LanguageChoice.label: String
         },
     )
 
-/** Fila de ajuste: icono, nombre y valor actual en el color principal. Tocarla cambia el valor. */
+/** Fila de ajuste: icono y valor actual; el nombre solo lo lee el lector de pantalla. Tocarla cambia el valor. */
 @Composable
 private fun SettingRow(icon: ImageVector, name: String, value: String, onClick: () -> Unit) {
     Row(
@@ -727,30 +690,12 @@ private fun SettingRow(icon: ImageVector, name: String, value: String, onClick: 
             .clip(RoundedCornerShape(50))
             .background(SmartColors.Surface)
             .clickable(onClick = onClick, role = Role.Button)
-            .semantics(mergeDescendants = true) {}
-            .padding(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
+            .semantics(mergeDescendants = true) { contentDescription = "$name: $value" }
+            .padding(ROW_PADDING),
     ) {
-        IconBadge(icon, tint = SmartColors.Brand.main, background = SmartColors.Brand.soft, size = 30.dp)
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(name, fontSize = 12.sp, color = SmartColors.TextMuted, maxLines = 1)
-            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun HelpStep(icon: ImageVector, tone: Tone, text: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(SmartColors.Surface)
-            .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
-    ) {
-        IconBadge(icon, tint = tone.main, background = tone.soft, size = 30.dp)
-        Spacer(Modifier.width(8.dp))
-        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SmartColors.Text)
+        IconBadge(icon, tint = SmartColors.Brand.onMain, background = SmartColors.Brand.main, size = ROW_ICON)
+        Spacer(Modifier.width(10.dp))
+        Text(value, fontSize = ROW_TEXT, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft, maxLines = 1)
     }
 }
 
@@ -765,9 +710,9 @@ private fun ConnectionChip(link: LinkState) {
             .background(SmartColors.Surface)
             .padding(horizontal = 10.dp, vertical = 3.dp),
     ) {
-        BreathingDot(tone.main)
+        BreathingDot(SmartColors.Text)
         Spacer(Modifier.width(5.dp))
-        Text(text.short, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = tone.main)
+        Text(text.short, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = SmartColors.TextMuted)
     }
 }
 
@@ -875,82 +820,40 @@ private fun FeedbackOverlay(result: CommandResult?, tick: Int, onHidden: () -> U
                     icon = style.icon,
                     tint = style.tone.onMain,
                     background = style.tone.main,
-                    size = 64.dp,
+                    size = 48.dp,
                     modifier = Modifier.graphicsLayer {
                         scaleX = pop.value
                         scaleY = pop.value
                     },
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
-                    style.title,
+                    style.text,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = style.tone.onSoft,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                 )
-                Spacer(Modifier.height(2.dp))
-                Text(style.detail, fontSize = 13.sp, color = SmartColors.Text, textAlign = TextAlign.Center, maxLines = 2)
             }
         }
     }
 }
 
-private data class ResultStyle(
-    val icon: ImageVector,
-    val tone: Tone,
-    val title: String,
-    val detail: String,
-)
+/** Resultado en pantalla: un icono (visto o X) y una sola frase. Los detalles van a [CommandLog]. */
+private data class ResultStyle(val icon: ImageVector, val tone: Tone, val text: String)
 
 @Composable
 private fun resultStyle(result: CommandResult?): ResultStyle? = when (result) {
     null -> null
-    is CommandResult.Executed -> ResultStyle(
-        icon = SmartIcons.Check,
-        tone = SmartColors.Success,
-        title = stringResource(R.string.result_done),
-        detail = result.command.feedbackLabel + when {
-            result.recognition == null -> ""
-            result.recognition.byAi -> result.recognition.confidence
-                ?.let { stringResource(R.string.result_by_ai, Math.round(it * 100).toInt()) }
-                ?: stringResource(R.string.result_by_ai_plain)
-            else -> stringResource(R.string.result_by_rules)
-        },
-    )
-    is CommandResult.MovementIgnored -> ResultStyle(
-        icon = SmartIcons.Close,
-        tone = SmartColors.Rejected,
-        title = stringResource(R.string.result_not_recognized),
-        detail = stringResource(result.failure.label),
-    )
-    is CommandResult.Failed -> ResultStyle(
-        icon = SmartIcons.Close,
-        tone = SmartColors.Rejected,
-        title = stringResource(R.string.result_failed),
-        detail = stringResource(result.failure.label),
-    )
+    is CommandResult.Executed -> ResultStyle(SmartIcons.Check, SmartColors.Success, result.command.feedbackLabel)
     // Solo en pruebas sin Windows: pasó la validación, pero no se envió a ningún equipo.
-    is CommandResult.Simulated -> ResultStyle(
-        icon = SmartIcons.Check,
-        tone = SmartColors.Success,
-        title = stringResource(R.string.result_accepted),
-        detail = result.command.feedbackLabel,
-    )
-    is CommandResult.Rejected -> ResultStyle(
-        icon = SmartIcons.Close,
-        tone = SmartColors.Rejected,
-        title = stringResource(R.string.result_failed),
-        detail = stringResource(result.reason.label),
-    )
+    is CommandResult.Simulated -> ResultStyle(SmartIcons.Check, SmartColors.Success, result.command.feedbackLabel)
+    is CommandResult.MovementIgnored -> ResultStyle(SmartIcons.Close, SmartColors.Rejected, stringResource(R.string.result_not_recognized))
+    is CommandResult.Failed -> ResultStyle(SmartIcons.Close, SmartColors.Rejected, stringResource(result.failure.label))
+    is CommandResult.Rejected -> ResultStyle(SmartIcons.Close, SmartColors.Rejected, stringResource(result.reason.label))
     // Un movimiento que no supera las reglas o el umbral de confianza no genera ningún comando.
-    is CommandResult.GestureUnrecognized -> ResultStyle(
-        icon = SmartIcons.Close,
-        tone = SmartColors.Rejected,
-        title = stringResource(R.string.result_not_recognized),
-        detail = stringResource(R.string.result_try_clearer),
-    )
+    is CommandResult.GestureUnrecognized -> ResultStyle(SmartIcons.Close, SmartColors.Rejected, stringResource(R.string.result_not_recognized))
 }
 
 /** Descripción natural de cada acción para los mensajes de resultado. */
