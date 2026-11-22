@@ -73,6 +73,7 @@ internal sealed class MainForm : Form
         _testToken = testToken;
 
         Text = "SmartControl";
+        Icon = AppIcon.Load();
         Font = Typography.Body;
         AutoScaleMode = AutoScaleMode.Dpi;
         MinimumSize = new Size(LogicalToDeviceUnits(960), LogicalToDeviceUnits(640));

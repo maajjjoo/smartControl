@@ -52,7 +52,7 @@ function Write-RuntimeConfig([string]$path, [string[]]$frameworks) {
     [IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding $false))
 }
 
-function Invoke-Csc([string]$name, [string]$target, [string]$sourceDir, [string[]]$references) {
+function Invoke-Csc([string]$name, [string]$target, [string]$sourceDir, [string[]]$references, [string[]]$resources = @()) {
     $sources = Get-ChildItem (Join-Path $appRoot $sourceDir) -Recurse -Filter *.cs |
         Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' } | ForEach-Object { $_.FullName }
     $rsp = Join-Path $out "$name.rsp"
@@ -62,6 +62,7 @@ function Invoke-Csc([string]$name, [string]$target, [string]$sourceDir, [string[
         "/out:`"$(Join-Path $out "$name.dll")`""
     )
     $lines += $references | ForEach-Object { "/reference:`"$_`"" }
+    $lines += $resources | ForEach-Object { "/resource:$_" }
     $lines += $sources | ForEach-Object { "`"$_`"" }
     [IO.File]::WriteAllLines($rsp, $lines)
     Write-Host "Compilando $name ($($sources.Count) archivos)..."
@@ -80,7 +81,9 @@ $desktopRefs = $coreRefs + (Get-ManagedAssemblies $desktop)
 $coreDll = Join-Path $out 'SmartControl.Core.dll'
 
 Invoke-Csc 'SmartControl.Core' 'library' 'src\SmartControl.Core' $coreRefs
-Invoke-Csc 'SmartControl' 'winexe' 'src\SmartControl.Desktop' ($desktopRefs + $coreDll)
+# El icono va dentro del ensamblado (como EmbeddedResource en el .csproj) y la ventana lo carga.
+$icon = Join-Path $appRoot 'src\SmartControl.Desktop\Assets\SmartControl.ico'
+Invoke-Csc 'SmartControl' 'winexe' 'src\SmartControl.Desktop' ($desktopRefs + $coreDll) @("`"$icon`",SmartControl.ico")
 Invoke-Csc 'SmartControl.Core.Tests' 'exe' 'tests\SmartControl.Core.Tests' ($coreRefs + $coreDll)
 Invoke-Csc 'SmartControl.Desktop.Tests' 'exe' 'tests\SmartControl.Desktop.Tests' ($desktopRefs + $coreDll + (Join-Path $out 'SmartControl.dll'))
 

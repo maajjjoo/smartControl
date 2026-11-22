@@ -6,7 +6,12 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>SmartControl.Desktop</RootNamespace>
     <AssemblyName>SmartControl</AssemblyName>
+    <ApplicationIcon>Assets\SmartControl.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\SmartControl.ico" LogicalName="SmartControl.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SmartControl.Core\SmartControl.Core.csproj" />
