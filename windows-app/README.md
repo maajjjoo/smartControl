@@ -36,7 +36,12 @@ Comportamiento:
 
 ### Reconocimiento local de gestos (`src/SmartControl.Core/Recognition`)
 
-Base de la inferencia del modelo de IA en Windows (ADR-01, ADR-03, ADR-06 en [architecture-decisions.md](../docs/architecture-decisions.md); detalle en [phase2-ai-evaluation.md](../docs/phase2-ai-evaluation.md)). **Todavía no hay ningún modelo entrenado** ni datos de un reloj físico: sin modelo, el reconocimiento está desactivado y rechaza todo. Aún no está conectado al receptor ni a la interfaz.
+IA de reconocimiento en Windows (ADR-01, ADR-03, ADR-06 en [architecture-decisions.md](../docs/architecture-decisions.md); detalle en [phase2-ai-evaluation.md](../docs/phase2-ai-evaluation.md)). Está **conectada al flujo real** desde el 2026-11-21: el reloj envía la ventana de cada movimiento (`SENSOR_WINDOW`, [communication-protocol.md §3.3](../docs/communication-protocol.md)) y `GestureRecognizer` decide con el modelo; la acción pasa por el validador de siempre.
+
+- **Gemini (ADR-07):** copiar `.env.example` como `.env` (en la raíz del repositorio o en `%LOCALAPPDATA%\SmartControl\`) y poner `GEMINI_API_KEY`. Al abrir la app, la ventana muestra «IA activa · Gemini (gemini-3.5-flash-lite)». Solo se envían a Gemini los números del giroscopio; si no responde en 2,5 s o no hay internet, deciden las reglas. El `.env` lo ignora Git.
+- **Modelo local (opcional, tiene prioridad):** copiar `model.json` y `model.json.sha256` (los genera `ai-module/training`) en `%LOCALAPPDATA%\SmartControl\model\`. La ventana muestra «IA activa · modelo …».
+- **Sin IA** (ni modelo ni clave): deciden las reglas del reloj y la ventana dice «IA sin configurar». En la actividad, cada gesto dice «IA 93 %» o «reglas del reloj». El registro anota `gemini_configured`, `gemini_missing_key`, `model_loaded` o `model_rejected`, y en cada gesto `by=AI engine="Gemini (…)"` o `by=RULES`; nunca la clave.
+- **Todavía no hay ningún modelo entrenado con datos reales.** Probado de punta a punta con el emulador y un modelo sintético de demostración (solo en una ventana de prueba): la IA reconoció un giro con 98 % y descartó una sacudida.
 
 | Componente | Función |
 |---|---|

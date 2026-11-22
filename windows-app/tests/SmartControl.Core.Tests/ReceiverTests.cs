@@ -144,7 +144,14 @@ internal static class ReceiverTests
         var stream = client.GetStream();
         var reader = new StreamReader(stream, Encoding.UTF8);
 
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(new string('A', CommandValidator.MaxMessageBytes + 100)));
+        // Un comando de más de 4 KB (pero dentro de una trama) se rechaza sin cerrar la conexión.
+        var big = Encoding.UTF8.GetString(Command()).Replace("\"SLIDE_NEXT\"", "\"" + new string('A', CommandValidator.MaxMessageBytes) + "\"");
+        await stream.WriteAsync(Encoding.UTF8.GetBytes(big + "\n"));
+        var tooBig = await reader.ReadLineAsync().WaitAsync(Timeout);
+        Check.Equal(ReasonCodes.MessageTooLarge, JsonDocument.Parse(tooBig!).RootElement.GetProperty("payload").GetProperty("reasonCode").GetString());
+
+        // Una trama más grande que la mayor admitida (una ventana de sensores) cierra la conexión.
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(new string('A', SmartControl.Core.Recognition.GestureRecognizer.MaxMessageBytes + 100)));
         var line = await reader.ReadLineAsync().WaitAsync(Timeout);
         var reason = JsonDocument.Parse(line!).RootElement.GetProperty("payload").GetProperty("reasonCode").GetString();
         Check.Equal(ReasonCodes.MessageTooLargeOrUnterminated, reason);

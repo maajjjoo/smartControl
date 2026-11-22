@@ -74,10 +74,17 @@ public sealed class RecognitionPipeline
 
     public bool HasModel => _classifier is not null;
 
+    /// <param name="messageId">
+    /// Identificador del mensaje del reloj del que procede la ventana. Si se indica, la candidata
+    /// lo conserva (con <paramref name="timestampUtc"/>), así el validador detecta repeticiones y
+    /// mensajes viejos de esa ventana. Si no, cada candidata es un mensaje nuevo.
+    /// </param>
     public RecognitionOutcome Recognize(
         IReadOnlyList<SensorSample>? gyroscope,
         IReadOnlyList<SensorSample>? accelerometer,
-        ControlMode mode)
+        ControlMode mode,
+        string? messageId = null,
+        long? timestampUtc = null)
     {
         if (_classifier is null)
             return new RecognitionOutcome(RecognitionStatus.ModelUnavailable, RecognitionReasons.ModelUnavailable);
@@ -106,9 +113,10 @@ public sealed class RecognitionPipeline
         // La candidata pasa por el validador existente como cualquier COMMAND_REQUEST.
         var request = new CommandRequest
         {
+            MessageId = messageId ?? Guid.NewGuid().ToString("D"),
             DeviceId = _deviceId,
             SessionToken = _sessionToken,
-            TimestampUtc = _clockMs(),
+            TimestampUtc = timestampUtc ?? _clockMs(),
             ActiveMode = CommandAllowlist.ToWireName(mode),
             GestureId = GestureId(decision.Gesture.Value),
             Confidence = decision.Confidence,

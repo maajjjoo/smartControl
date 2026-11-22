@@ -63,6 +63,8 @@ internal static class TestRunner
         tests.AddRange(ReceiverTests.All());
         tests.AddRange(RealExecutionTests.All());
         tests.AddRange(PairingTests.All());
+        tests.AddRange(AiRecognitionTests.All());
+        tests.AddRange(GeminiTests.All());
         tests.AddRange(EventLogTests.All());
         tests.AddRange(SensorWindowTests.All());
         tests.AddRange(MovementFeaturesTests.All());

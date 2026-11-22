@@ -39,6 +39,8 @@ internal static class TestRunner
         tests.AddRange(HighContrastTests.All());
         tests.AddRange(ExecutionTests.All());
         tests.AddRange(PairingWindowTests.All());
+        tests.AddRange(AiWindowTests.All());
+        tests.AddRange(EnvFileTests.All());
 
         var failed = 0;
         var stopwatch = Stopwatch.StartNew();

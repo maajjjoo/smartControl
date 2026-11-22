@@ -100,30 +100,31 @@ Valores previstos para `status`:
 - `REJECTED_INVALID_MESSAGE`: Mensaje incompleto, malformado o con sesión inválida (RNF-04, RNF-07).
 - `EXECUTION_ERROR`: Error al invocar la acción en el sistema operativo (RF-10).
 
-### 3.3. Mensaje de Ventana de Sensores (`SENSOR_WINDOW` — Borrador sujeto a PoC)
-En caso de que la evaluación técnica de la Fase 2 determine ejecutar el modelo de reconocimiento en Windows (Escenario 2 de la Sección 2), se contempla un mensaje preliminar para transmitir una ventana acotada de lecturas de acelerómetro y giroscopio asociada al modo activo. La frecuencia de muestreo, la cantidad de muestras por ventana y los límites definitivos de tamaño se establecerán únicamente a partir de las mediciones experimentales de la prueba de concepto:
+### 3.3. Mensaje de Ventana de Sensores (`SENSOR_WINDOW`, implementado el 2026-11-21)
+Enfoque híbrido aprobado (ADR-01 C, ADR-03, ADR-07): el reloj **segmenta** cada movimiento con sus reglas y envía la ventana del giroscopio; Windows decide el gesto con la **IA**: un modelo local entrenado si está instalado o, si no, **Gemini** (con clave en `.env`). Sin IA, o si Gemini no responde a tiempo, Windows usa lo que dijeron las reglas del reloj (`detectorEvent`).
 
 ```json
 {
   "protocolVersion": "1.0-draft",
   "messageId": "772a0622-a41d-43f6-c938-668877662222",
   "timestampUtc": 1792633800500,
-  "deviceId": "wearos-watch-01",
-  "sessionToken": "TOKEN_DE_VINCULACION_LOCAL",
+  "deviceId": "watch-1a2b3c4d5e6f7a8b",
+  "sessionToken": "TOKEN_DE_VINCULACION",
   "messageType": "SENSOR_WINDOW",
   "payload": {
     "activeMode": "PRESENTATION",
-    "accelerometer": [
-      { "tOffsetMs": 0, "x": 0.12, "y": -0.05, "z": 9.81 },
-      { "tOffsetMs": 20, "x": 1.45, "y": -0.30, "z": 9.60 }
-    ],
-    "gyroscope": [
-      { "tOffsetMs": 0, "x": 0.01, "y": 0.02, "z": -0.01 },
-      { "tOffsetMs": 20, "x": 0.35, "y": 1.20, "z": -0.15 }
-    ]
+    "detectorEvent": "TWIST_OUT",
+    "detectorConfidence": 0.91,
+    "gyroscope": [[0, 0.0123, -0.0012, 0.0004], [20, 0.4512, 0.1021, -0.0103]]
   }
 }
 ```
+
+- `detectorEvent`: `TWIST_OUT`, `TWIST_IN` o `UNCLEAR` (las reglas vieron movimiento pero no un gesto claro). Se envían las dos clases, porque la IA puede decidir distinto que las reglas.
+- `gyroscope`: filas `[tOffsetMs, x, y, z]` en rad/s, con las reglas de [recording-format.md §3](recording-format.md) (8 a 256 muestras, 200 ms previos al movimiento, hueco ≤ 100 ms, ≤ 2000 ms). Sin acelerómetro en esta versión.
+- Campos exactos; tamaño máximo 16 KB (los `COMMAND_REQUEST` siguen limitados a 4 KB). Primero se comprueba la vinculación (`deviceId` + `sessionToken`) y después la ventana; la acción candidata pasa por el validador de §4 con el mismo `messageId` y `timestampUtc`, así que una ventana repetida o vieja se rechaza.
+- La respuesta es un `COMMAND_RESPONSE` (§3.2) con tres campos más: `recognizedBy` (`AI` o `RULES`), `gesture` (`TWIST_OUT`, `TWIST_IN`, `NO_GESTURE` o null) y `confidence`. Si la IA decide que no era un gesto, `status` es `REJECTED_LOW_CONFIDENCE` con `reasonCode` `NO_GESTURE` o `LOW_CONFIDENCE`.
+- Sin ventana (por ejemplo, si el reloj aún no tenía 200 ms de lecturas previas) el reloj envía el `COMMAND_REQUEST` de las reglas, como antes.
 
 ### 3.4. Mensajes de Control de Conexión (implementados el 2026-11-20)
 Para que la conexión sea automática (RF-16, RF-17, RNF-15) sin que el usuario escriba direcciones. Canal: **Wi-Fi local**, JSON por líneas sobre TCP en el puerto 47800 (el mismo que `COMMAND_REQUEST`). Misma cabecera que §3.1 y campos exactos; los desconocidos se rechazan.

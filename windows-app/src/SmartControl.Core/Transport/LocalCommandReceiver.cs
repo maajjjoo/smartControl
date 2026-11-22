@@ -12,6 +12,7 @@ using SmartControl.Core.Execution;
 using SmartControl.Core.Logging;
 using SmartControl.Core.Pairing;
 using SmartControl.Core.Protocol;
+using SmartControl.Core.Recognition;
 
 namespace SmartControl.Core.Transport;
 
@@ -24,14 +25,18 @@ public enum ReceiverState
 
 public sealed class CommandProcessedEventArgs : EventArgs
 {
-    public CommandProcessedEventArgs(ValidationResult result, string? effect, DateTimeOffset receivedAt)
+    public CommandProcessedEventArgs(ValidationResult result, string? effect, DateTimeOffset receivedAt, RecognitionInfo? recognition = null)
     {
         Result = result;
         Effect = effect;
         ReceivedAt = receivedAt;
+        Recognition = recognition;
     }
 
     public ValidationResult Result { get; }
+
+    /// <summary>Si el comando salió de una ventana de movimiento: quién decidió el gesto (IA o reglas).</summary>
+    public RecognitionInfo? Recognition { get; }
     public string? Effect { get; }
     public DateTimeOffset ReceivedAt { get; }
 }
@@ -67,8 +72,8 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
 {
     public const int DefaultPort = 47800;
     public const int MaxClients = 8;
-    // Mensaje + "\r\n".
-    private const int MaxFrameBytes = CommandValidator.MaxMessageBytes + 2;
+    // El mensaje más grande (una ventana de sensores) + "\r\n". Cada tipo aplica después su límite.
+    private const int MaxFrameBytes = GestureRecognizer.MaxMessageBytes + 2;
 
     private readonly CommandValidator _validator;
     private readonly ICommandExecutor _executor;
@@ -78,6 +83,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
     private readonly ConcurrentDictionary<int, Task> _clients = new();
     private readonly ConcurrentDictionary<int, string> _watches = new();
     private readonly PairingCoordinator? _pairing;
+    private readonly GestureRecognizer? _recognizer;
     private readonly ReceiverOptions _options;
     private DiscoveryResponder? _discovery;
     private readonly object _stateLock = new();
@@ -95,7 +101,8 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         int port = DefaultPort,
         TimeSpan? idleTimeout = null,
         PairingCoordinator? pairing = null,
-        ReceiverOptions? options = null)
+        ReceiverOptions? options = null,
+        GestureRecognizer? recognizer = null)
     {
         if (port < 0 || port > IPEndPoint.MaxPort)
             throw new ArgumentOutOfRangeException(nameof(port));
@@ -105,6 +112,7 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         _requestedPort = port;
         _idleTimeout = idleTimeout ?? TimeSpan.FromSeconds(30);
         _pairing = pairing;
+        _recognizer = recognizer;
         _options = options ?? new ReceiverOptions();
     }
 
@@ -314,7 +322,15 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
                     if (bodyLength > 0 && frame[bodyLength - 1] == (byte)'\r')
                         bodyLength--;
                     var body = frame.AsMemory(0, bodyLength);
-                    if (_pairing is not null && SessionProtocol.IsSessionType(SessionProtocol.PeekMessageType(body)))
+                    var type = SessionProtocol.PeekMessageType(body);
+                    if (_recognizer is not null && type == GestureRecognizer.MessageType)
+                    {
+                        var (recognized, recognizedEffect, info) = await ProcessWindowAsync(body, ct).ConfigureAwait(false);
+                        frameLength = 0;
+                        await SendAsync(stream, recognized, recognizedEffect, _executor.PerformsRealActions, ct, info).ConfigureAwait(false);
+                        continue;
+                    }
+                    if (_pairing is not null && SessionProtocol.IsSessionType(type))
                     {
                         var message = SessionProtocol.Parse(body);
                         frameLength = 0;
@@ -403,9 +419,29 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         await stream.WriteAsync(line.AsMemory(), ct).ConfigureAwait(false);
     }
 
+    /// <summary>Ventana de movimiento: decide la IA (o las reglas sin IA) y se ejecuta si se valida.</summary>
+    private async Task<(ValidationResult Result, string? Effect, RecognitionInfo? Info)> ProcessWindowAsync(ReadOnlyMemory<byte> body, CancellationToken ct)
+    {
+        // RecognizeAsync lee el mensaje antes de esperar a la red: el búfer de la trama ya no se usa después.
+        var recognition = await _recognizer!.RecognizeAsync(body, ct).ConfigureAwait(false);
+        var (result, effect) = Execute(recognition.Result);
+        Report(result, effect, recognition.Info);
+        return (result, effect, recognition.Info);
+    }
+
     private (ValidationResult Result, string? Effect) Process(ReadOnlyMemory<byte> body)
     {
-        var result = _validator.Validate(body);
+        // Un COMMAND_REQUEST nunca puede pasar del límite de 4 KB, aunque la trama admita más.
+        var result = body.Length > CommandValidator.MaxMessageBytes
+            ? ValidationResult.Reject(CommandStatus.RejectedInvalidMessage, ReasonCodes.MessageTooLarge)
+            : _validator.Validate(body);
+        var executed = Execute(result);
+        Report(executed.Result, executed.Effect);
+        return executed;
+    }
+
+    private (ValidationResult Result, string? Effect) Execute(ValidationResult result)
+    {
         string? effect = null;
         if (result.IsAccepted)
         {
@@ -422,25 +458,26 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
                 result = result with { Status = CommandStatus.ExecutionError, ReasonCode = ReasonCodes.ExecutorFailed };
             }
         }
-        Report(result, effect);
         return (result, effect);
     }
 
-    private void Report(ValidationResult result, string? effect)
+    private void Report(ValidationResult result, string? effect, RecognitionInfo? recognition = null)
     {
         // Solo se registran datos ya validados o generados aquí; nunca el token ni el mensaje.
         var action = result.Action is { } a ? CommandAllowlist.ToWireName(a) : "-";
         _log.Write(
             result.Status == CommandStatus.Accepted ? EventLevel.Info : EventLevel.Warning,
             "command",
-            $"messageId={result.MessageId ?? "-"} status={CommandResponseWriter.ToWireStatus(result.Status, _executor.PerformsRealActions)} reason={result.ReasonCode} action={action}");
+            $"messageId={result.MessageId ?? "-"} status={CommandResponseWriter.ToWireStatus(result.Status, _executor.PerformsRealActions)} reason={result.ReasonCode} action={action}"
+            + (recognition is null ? "" : $" by={recognition.RecognizedBy} gesture={recognition.Gesture ?? "-"} confidence={recognition.Confidence.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)}"
+                + (recognition.Engine is { } engine ? $" engine=\"{engine}\"" : "")));
 
         var handler = CommandProcessed;
         if (handler is null)
             return;
         try
         {
-            handler(this, new CommandProcessedEventArgs(result, effect, DateTimeOffset.Now));
+            handler(this, new CommandProcessedEventArgs(result, effect, DateTimeOffset.Now, recognition));
         }
         catch (Exception)
         {
@@ -448,9 +485,10 @@ public sealed class LocalCommandReceiver : IAsyncDisposable
         }
     }
 
-    private static async Task SendAsync(NetworkStream stream, ValidationResult result, string? effect, bool executed, CancellationToken ct)
+    private static async Task SendAsync(NetworkStream stream, ValidationResult result, string? effect, bool executed, CancellationToken ct,
+        RecognitionInfo? recognition = null)
     {
-        var json = CommandResponseWriter.Write(result, effect, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), executed);
+        var json = CommandResponseWriter.Write(result, effect, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), executed, recognition);
         var line = new byte[json.Length + 1];
         json.CopyTo(line, 0);
         line[^1] = (byte)'\n';

@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using SmartControl.Core.Logging;
 using SmartControl.Core.Pairing;
 using SmartControl.Core.Protocol;
+using SmartControl.Core.Recognition;
 using SmartControl.Core.Transport;
 using SmartControl.Desktop.Ui;
 
@@ -41,6 +42,8 @@ internal sealed class MainForm : Form
     private readonly Label _technicalLabel = new();
     private readonly StatusAnnouncement _statusAnnouncement = new();
     private readonly PairingCoordinator? _pairing;
+    private readonly GestureRecognizer? _recognizer;
+    private readonly Label _aiStatus = new();
     private readonly Card _pairingCard = new();
     private readonly Label _pairingDetail = new();
     private readonly Label _pairingCode = new();
@@ -53,8 +56,10 @@ internal sealed class MainForm : Form
     private byte[]? _lastSentMessage;
     private bool _closingAfterStop;
 
-    public MainForm(LocalCommandReceiver receiver, FileEventLog log, string testDeviceId, string testToken, PairingCoordinator? pairing = null)
+    public MainForm(LocalCommandReceiver receiver, FileEventLog log, string testDeviceId, string testToken, PairingCoordinator? pairing = null,
+        GestureRecognizer? recognizer = null)
     {
+        _recognizer = recognizer;
         _receiver = receiver;
         _pairing = pairing;
         _logPath = log.CurrentFilePath;
@@ -159,7 +164,17 @@ internal sealed class MainForm : Form
         Controls.Add(root);
     }
 
-    private static Control BuildHeader()
+    /// <summary>Texto de la IA bajo el título: si hay un modelo entrenado o si deciden las reglas.</summary>
+    internal string AiStatusText => _aiStatus.Text;
+
+    private static string AiStatus(GestureRecognizer? recognizer) => recognizer switch
+    {
+        null => "",
+        { HasAi: true } => $"IA activa · {recognizer.AiName}",
+        _ => "IA sin configurar · por ahora deciden las reglas del reloj",
+    };
+
+    private Control BuildHeader()
     {
         var header = new TableLayoutPanel
         {
@@ -179,6 +194,15 @@ internal sealed class MainForm : Form
             Font = Typography.Title,
             Margin = new Padding(0),
         }.WithColors(fore: () => Palette.Text), 0, 0);
+        _aiStatus.Name = "aiStatus";
+        _aiStatus.AutoSize = true;
+        _aiStatus.Anchor = AnchorStyles.Left;
+        _aiStatus.Font = Typography.Small;
+        _aiStatus.Margin = new Padding(14, 6, 0, 0);
+        _aiStatus.Text = AiStatus(_recognizer);
+        _aiStatus.Visible = _recognizer is not null;
+        _aiStatus.WithColors(fore: () => _recognizer is { HasAi: true } ? Palette.SuccessOnSoft : Palette.TextMuted);
+        header.Controls.Add(_aiStatus, 1, 0);
         var subtitle = new Label
         {
             Text = "Controla tus presentaciones y tu música con gestos del reloj.",

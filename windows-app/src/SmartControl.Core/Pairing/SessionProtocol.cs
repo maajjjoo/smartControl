@@ -57,7 +57,8 @@ public static class SessionProtocol
     /// <summary>Lee solo el tipo de mensaje; nulo si no es JSON o no lo tiene.</summary>
     public static string? PeekMessageType(ReadOnlyMemory<byte> raw)
     {
-        if (raw.Length == 0 || raw.Length > CommandValidator.MaxMessageBytes)
+        // Hasta el tamaño de una ventana de sensores; cada tipo aplica después su propio límite.
+        if (raw.Length == 0 || raw.Length > SmartControl.Core.Recognition.GestureRecognizer.MaxMessageBytes)
             return null;
         try
         {

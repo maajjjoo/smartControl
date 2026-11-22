@@ -87,4 +87,6 @@ venv/
 *.log
 .env
 .env.*
+# El ejemplo sin clave sí se sube.
+!.env.example
 

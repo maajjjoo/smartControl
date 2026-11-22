@@ -30,7 +30,8 @@ public static class CommandResponseWriter
     /// Devuelve la respuesta en UTF-8, sin el salto de línea final. <paramref name="executed"/>
     /// indica que el ejecutor actúa de verdad (no simulado).
     /// </summary>
-    public static byte[] Write(ValidationResult result, string? effect, long nowMs, bool executed = false)
+    public static byte[] Write(ValidationResult result, string? effect, long nowMs, bool executed = false,
+        SmartControl.Core.Recognition.RecognitionInfo? recognition = null)
     {
         var acceptedAction = result.Status == CommandStatus.Accepted && result.Action is { } a
             ? CommandAllowlist.ToWireName(a)
@@ -52,6 +53,13 @@ public static class CommandResponseWriter
                 result.Action is { } action ? CommandAllowlist.ToWireName(action) : null);
             json.WriteString("reasonCode", result.ReasonCode);
             json.WriteString("message", effect ?? "Comando rechazado; no se ejecutó ninguna acción");
+            if (recognition is not null)
+            {
+                // Solo en respuestas a SENSOR_WINDOW: quién decidió el gesto y con qué confianza.
+                json.WriteString("recognizedBy", recognition.RecognizedBy);
+                WriteStringOrNull(json, "gesture", recognition.Gesture);
+                json.WriteNumber("confidence", Math.Round(recognition.Confidence, 3));
+            }
             json.WriteEndObject();
             json.WriteEndObject();
         }

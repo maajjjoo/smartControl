@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using SmartControl.Core.Protocol;
+using SmartControl.Core.Recognition;
 using SmartControl.Core.Transport;
 
 namespace SmartControl.Desktop.Ui;
@@ -19,8 +20,9 @@ internal sealed record ActivityEntry(DateTimeOffset Time, bool Accepted, string 
         if (result.Status == CommandStatus.Accepted && result.Action is { } action)
         {
             var mode = Texts.ModeName(CommandAllowlist.RequiredMode(action));
+            var by = e.Recognition is { } r ? $"{Texts.RecognizedBy(r)} · " : "";
             return new ActivityEntry(e.ReceivedAt, true, Texts.ActionGlyph(action), Texts.ActionName(action),
-                $"{mode} · {Texts.ActionEffect(action)}", result.ReasonCode);
+                $"{mode} · {by}{Texts.ActionEffect(action)}", result.ReasonCode);
         }
         var (title, detail) = Texts.Rejection(result);
         return new ActivityEntry(e.ReceivedAt, false, Icons.Blocked, title, detail, result.ReasonCode);
@@ -69,6 +71,10 @@ internal static class Texts
         AllowedAction.MediaPreviousTrack => Icons.TrackPrevious,
         _ => Icons.Check,
     };
+
+    /// <summary>Quién reconoció el gesto: la IA con su confianza, o las reglas del reloj.</summary>
+    public static string RecognizedBy(RecognitionInfo info) =>
+        info.IsModel ? $"IA {Math.Round(info.Confidence * 100):0} %" : "reglas del reloj";
 
     /// <summary>Qué se hizo en Windows para la acción, en palabras del usuario.</summary>
     public static string ActionEffect(AllowedAction action) => action switch
@@ -122,6 +128,10 @@ internal static class Texts
                 return ("El reproductor no respondió", "El reproductor abierto no aceptó la orden.");
             case ReasonCodes.InputBlocked:
                 return ("Windows bloqueó la tecla", "No se pudo pulsar la flecha. Comprueba que la pantalla no esté bloqueada.");
+            case RecognitionReasons.NoGesture:
+                return ("Movimiento normal", "La IA decidió que no era un gesto. " + Nothing);
+            case RecognitionReasons.LowConfidence:
+                return ("Gesto poco claro", "La IA no estaba segura de qué gesto era. " + Nothing);
         }
         return result.Status == CommandStatus.RejectedInvalidMessage
             ? ("Mensaje dañado", "Llegó incompleto o con un formato que no se entiende. " + Nothing)
