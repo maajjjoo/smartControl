@@ -167,6 +167,7 @@ internal sealed class ActivityList : ListBox
     {
         base.OnHandleCreated(e);
         ItemHeight = LogicalToDeviceUnits(64);
+        NativeTheme.ApplyScrollbars(this);
     }
 
     public event EventHandler? EntryAdded;

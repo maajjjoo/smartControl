@@ -131,7 +131,7 @@ internal sealed class SmartButton : Button
             var inset = 1.5f;
             var ring = new RectangleF(inset, inset, Width - inset * 2 - 1, Height - inset * 2 - 1);
             using var path = Shapes.RoundedRect(ring, radius - 1);
-            var ringColor = Palette.HighContrast ? fore : Kind == ButtonKind.Primary ? Color.White : Palette.Accent;
+            var ringColor = Palette.HighContrast ? fore : Kind == ButtonKind.Primary ? Palette.OnAccent : Palette.Accent;
             using var pen = new Pen(ringColor, 2f);
             g.DrawPath(pen, path);
         }
@@ -149,7 +149,7 @@ internal sealed class SmartButton : Button
             return (Palette.AccentSoft, Palette.Accent, Palette.AccentOnSoft);
         return Kind switch
         {
-            ButtonKind.Primary => (_pressed ? Palette.AccentPressed : _hover ? Palette.AccentDark : Palette.Accent, Color.Empty, Color.White),
+            ButtonKind.Primary => (_pressed ? Palette.AccentPressed : _hover ? Palette.AccentDark : Palette.Accent, Color.Empty, Palette.OnAccent),
             ButtonKind.Subtle => (_pressed ? Palette.SurfacePressed : _hover ? Palette.IdleSoft : Color.Empty, Color.Empty, Palette.AccentOnSoft),
             _ => (_pressed ? Palette.SurfacePressed : _hover ? Palette.SurfaceHover : Palette.Surface,
                   _hover ? Palette.OutlineStrong : Palette.Outline, Palette.Text),

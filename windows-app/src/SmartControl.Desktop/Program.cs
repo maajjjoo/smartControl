@@ -69,7 +69,7 @@ internal static class Program
             });
 
         log.Write(EventLevel.Info, "app", "started");
-        Application.Run(new MainForm(receiver, log, TestPanelDeviceId, testToken, pairing, recognizer));
+        Application.Run(new MainForm(receiver, log, TestPanelDeviceId, testToken, pairing, recognizer, new UserSettings(UserSettings.DefaultPath)));
         log.Write(EventLevel.Info, "app", "closed");
     }
 

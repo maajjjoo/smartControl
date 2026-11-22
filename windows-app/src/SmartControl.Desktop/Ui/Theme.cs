@@ -12,8 +12,10 @@ namespace SmartControl.Desktop.Ui;
 /// para que las dos partes se reconozcan como el mismo producto: diseño minimalista con un solo
 /// color principal (vinotinto, con rosado de fondo) y grises neutros. Un acierto usa el vinotinto;
 /// un error, un rojo vivo solo en el icono y sobre gris, para no confundirlo con el principal.
+/// En modo oscuro el fondo es casi negro y el vinotinto pasa a rosado para que se lea bien.
 /// Con el contraste alto de Windows activado, cada color pasa a su color de sistema equivalente
-/// (ventana, texto, resaltado y texto deshabilitado), que son los que eligió el usuario.
+/// (ventana, texto, resaltado y texto deshabilitado), que son los que eligió el usuario; el
+/// contraste alto manda sobre el modo oscuro.
 /// </summary>
 internal static class Palette
 {
@@ -23,37 +25,53 @@ internal static class Palette
     /// </summary>
     public static bool HighContrast { get; internal set; } = SystemInformation.HighContrast;
 
-    /// <summary>Vuelve a leer la configuración de contraste de Windows.</summary>
-    public static void Refresh() => HighContrast = SystemInformation.HighContrast;
+    /// <summary>Modo oscuro. Lo decide <see cref="Refresh"/> con el tema elegido en Ajustes.</summary>
+    public static bool Dark { get; internal set; }
 
-    public static Color Background => HighContrast ? SystemColors.Window : Color.FromArgb(0xF7, 0xF7, 0xF8);
-    public static Color Surface => HighContrast ? SystemColors.Window : Color.White;
-    public static Color SurfaceHover => HighContrast ? SystemColors.Window : Color.FromArgb(0xF4, 0xF4, 0xF5);
-    public static Color SurfacePressed => HighContrast ? SystemColors.Window : Color.FromArgb(0xE9, 0xE9, 0xEC);
-    public static Color Text => HighContrast ? SystemColors.WindowText : Color.FromArgb(0x18, 0x18, 0x1B);
-    public static Color TextMuted => HighContrast ? SystemColors.WindowText : Color.FromArgb(0x63, 0x63, 0x6B);
-    public static Color Outline => HighContrast ? SystemColors.WindowText : Color.FromArgb(0xE4, 0xE4, 0xE7);
-    public static Color OutlineStrong => HighContrast ? SystemColors.WindowText : Color.FromArgb(0xD4, 0xD4, 0xD8);
+    /// <summary>
+    /// Vuelve a leer la configuración de contraste de Windows y aplica el tema: oscuro si se eligió
+    /// así o si se sigue a Windows y Windows usa el modo oscuro para las aplicaciones.
+    /// </summary>
+    public static void Refresh(bool? dark = null)
+    {
+        HighContrast = SystemInformation.HighContrast;
+        if (dark is not null)
+            Dark = dark.Value;
+    }
 
-    public static Color Accent => HighContrast ? SystemColors.Highlight : Color.FromArgb(0x8E, 0x1C, 0x3A);
-    public static Color AccentDark => HighContrast ? SystemColors.Highlight : Color.FromArgb(0x76, 0x15, 0x30);
-    public static Color AccentPressed => HighContrast ? SystemColors.Highlight : Color.FromArgb(0x5E, 0x10, 0x27);
-    public static Color AccentSoft => HighContrast ? SystemColors.Highlight : Color.FromArgb(0xFB, 0xEA, 0xF0);
-    public static Color AccentOnSoft => HighContrast ? SystemColors.HighlightText : Color.FromArgb(0x6E, 0x15, 0x30);
+    private static Color Pick(int light, int dark) => Color.FromArgb(unchecked((int)0xFF000000) | (Dark ? dark : light));
 
-    public static Color Success => HighContrast ? SystemColors.WindowText : Color.FromArgb(0x8E, 0x1C, 0x3A);
-    public static Color SuccessSoft => HighContrast ? SystemColors.Window : Color.FromArgb(0xFB, 0xEA, 0xF0);
-    public static Color SuccessOnSoft => HighContrast ? SystemColors.WindowText : Color.FromArgb(0x6E, 0x15, 0x30);
+    public static Color Background => HighContrast ? SystemColors.Window : Pick(0xF7F7F8, 0x0E0E10);
+    public static Color Surface => HighContrast ? SystemColors.Window : Pick(0xFFFFFF, 0x1A1A1D);
+    public static Color SurfaceHover => HighContrast ? SystemColors.Window : Pick(0xF4F4F5, 0x242428);
+    public static Color SurfacePressed => HighContrast ? SystemColors.Window : Pick(0xE9E9EC, 0x2E2E33);
+    public static Color Text => HighContrast ? SystemColors.WindowText : Pick(0x18181B, 0xF4F4F5);
+    public static Color TextMuted => HighContrast ? SystemColors.WindowText : Pick(0x63636B, 0xA1A1AA);
+    public static Color Outline => HighContrast ? SystemColors.WindowText : Pick(0xE4E4E7, 0x2E2E33);
+    public static Color OutlineStrong => HighContrast ? SystemColors.WindowText : Pick(0xD4D4D8, 0x46464E);
 
-    public static Color Danger => HighContrast ? SystemColors.WindowText : Color.FromArgb(0xC6, 0x28, 0x28);
-    public static Color DangerSoft => HighContrast ? SystemColors.Window : Color.FromArgb(0xF4, 0xF4, 0xF5);
-    public static Color DangerOnSoft => HighContrast ? SystemColors.WindowText : Color.FromArgb(0xB4, 0x23, 0x18);
+    public static Color Accent => HighContrast ? SystemColors.Highlight : Pick(0x8E1C3A, 0xEC7A99);
+    public static Color AccentDark => HighContrast ? SystemColors.Highlight : Pick(0x761530, 0xF292AD);
+    public static Color AccentPressed => HighContrast ? SystemColors.Highlight : Pick(0x5E1027, 0xF7ABC0);
+    public static Color AccentSoft => HighContrast ? SystemColors.Highlight : Pick(0xFBEAF0, 0x3A1622);
+    public static Color AccentOnSoft => HighContrast ? SystemColors.HighlightText : Pick(0x6E1530, 0xF6A9BE);
 
-    public static Color WarningSoft => HighContrast ? SystemColors.Window : Color.FromArgb(0xF4, 0xF4, 0xF5);
-    public static Color WarningOnSoft => HighContrast ? SystemColors.WindowText : Color.FromArgb(0x3F, 0x3F, 0x46);
+    /// <summary>Texto e iconos sobre el color principal (botón principal).</summary>
+    public static Color OnAccent => HighContrast ? SystemColors.HighlightText : Pick(0xFFFFFF, 0x1A0710);
 
-    public static Color Idle => HighContrast ? SystemColors.GrayText : Color.FromArgb(0x8E, 0x8E, 0x96);
-    public static Color IdleSoft => HighContrast ? SystemColors.Window : Color.FromArgb(0xF1, 0xF1, 0xF3);
+    public static Color Success => HighContrast ? SystemColors.WindowText : Pick(0x8E1C3A, 0xEC7A99);
+    public static Color SuccessSoft => HighContrast ? SystemColors.Window : Pick(0xFBEAF0, 0x3A1622);
+    public static Color SuccessOnSoft => HighContrast ? SystemColors.WindowText : Pick(0x6E1530, 0xF6A9BE);
+
+    public static Color Danger => HighContrast ? SystemColors.WindowText : Pick(0xC62828, 0xFF6B6B);
+    public static Color DangerSoft => HighContrast ? SystemColors.Window : Pick(0xF4F4F5, 0x2A2A2E);
+    public static Color DangerOnSoft => HighContrast ? SystemColors.WindowText : Pick(0xB42318, 0xFF8A80);
+
+    public static Color WarningSoft => HighContrast ? SystemColors.Window : Pick(0xF4F4F5, 0x2A2A2E);
+    public static Color WarningOnSoft => HighContrast ? SystemColors.WindowText : Pick(0x3F3F46, 0xD4D4D8);
+
+    public static Color Idle => HighContrast ? SystemColors.GrayText : Pick(0x8E8E96, 0x76767F);
+    public static Color IdleSoft => HighContrast ? SystemColors.Window : Pick(0xF1F1F3, 0x26262A);
 }
 
 /// <summary>
@@ -115,6 +133,7 @@ internal static class Icons
     public const string Blocked = "";
     public const string Warning = "";
     public const string Info = "";
+    public const string Settings = "";
 
     public static Font Create(float size) => new(FontName, size);
 }

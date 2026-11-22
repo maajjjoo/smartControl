@@ -12,6 +12,7 @@ using SmartControl.Core.Pairing;
 using SmartControl.Core.Protocol;
 using SmartControl.Core.Recognition;
 using SmartControl.Core.Transport;
+using SmartControl.Desktop.Configuration;
 using SmartControl.Desktop.Ui;
 
 namespace SmartControl.Desktop;
@@ -50,6 +51,8 @@ internal sealed class MainForm : Form
     private readonly SmartButton _pairButton = new();
     private readonly SmartButton _rejectPairButton = new();
     private readonly SmartButton _watchesButton = new();
+    private readonly SmartButton _settingsButton = new();
+    private readonly UserSettings _settings;
     private PairingRequest? _pendingPairing;
 
     private ControlMode _testMode = ControlMode.Presentation;
@@ -57,9 +60,12 @@ internal sealed class MainForm : Form
     private bool _closingAfterStop;
 
     public MainForm(LocalCommandReceiver receiver, FileEventLog log, string testDeviceId, string testToken, PairingCoordinator? pairing = null,
-        GestureRecognizer? recognizer = null)
+        GestureRecognizer? recognizer = null, UserSettings? settings = null)
     {
         _recognizer = recognizer;
+        // Sin ajustes guardados (pruebas), tema claro fijo para no depender del equipo.
+        _settings = settings ?? new UserSettings { Theme = ThemeChoice.Light };
+        Palette.Refresh(_settings.IsDark);
         _receiver = receiver;
         _pairing = pairing;
         _logPath = log.CurrentFilePath;
@@ -94,26 +100,74 @@ internal sealed class MainForm : Form
     protected override void OnSystemColorsChanged(EventArgs e)
     {
         base.OnSystemColorsChanged(e);
-        Palette.Refresh();
+        Palette.Refresh(_settings.IsDark);
         ApplyTheme();
     }
 
-    /// <summary>Activar o desactivar el contraste alto llega como un cambio de accesibilidad.</summary>
+    /// <summary>
+    /// Activar o desactivar el contraste alto llega como un cambio de accesibilidad; pasar Windows
+    /// a modo claro u oscuro, como un cambio general.
+    /// </summary>
     private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
-        if (e.Category == UserPreferenceCategory.Accessibility)
+        if (e.Category is UserPreferenceCategory.Accessibility or UserPreferenceCategory.General)
             RunOnUi(() =>
             {
-                Palette.Refresh();
-                ApplyTheme();
+                var dark = Palette.Dark;
+                var highContrast = Palette.HighContrast;
+                Palette.Refresh(_settings.IsDark);
+                if (dark != Palette.Dark || highContrast != Palette.HighContrast)
+                    ApplyTheme();
             });
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        NativeTheme.ApplyTitleBar(this);
     }
 
     /// <summary>Vuelve a aplicar los colores de <see cref="Palette"/> a toda la ventana y la repinta.</summary>
     internal void ApplyTheme()
     {
         ThemeColors.Reapply(this);
+        NativeTheme.ApplyTitleBar(this);
+        NativeTheme.ApplyScrollbars(_activity);
         UpdateStatus();
+    }
+
+    /// <summary>Tema elegido en Ajustes.</summary>
+    internal ThemeChoice ThemeChoice => _settings.Theme;
+
+    /// <summary>Cambia el tema, lo guarda y repinta la ventana sin reiniciarla.</summary>
+    internal void SetTheme(ThemeChoice theme)
+    {
+        _settings.Theme = theme;
+        _settings.Save();
+        Palette.Refresh(_settings.IsDark);
+        ApplyTheme();
+    }
+
+    /// <summary>Menú Ajustes: el tema de la ventana.</summary>
+    internal ContextMenuStrip BuildSettingsMenu()
+    {
+        var menu = Menus.Create();
+        menu.AccessibleName = "Ajustes";
+        menu.Items.Add(Menus.Header("Tema"));
+        foreach (var (choice, text) in new[] { (ThemeChoice.System, "Igual que Windows"), (ThemeChoice.Light, "Claro"), (ThemeChoice.Dark, "Oscuro") })
+        {
+            var item = new ToolStripMenuItem(text) { Checked = _settings.Theme == choice };
+            item.Click += (_, _) => SetTheme(choice);
+            menu.Items.Add(item);
+        }
+        return menu;
+    }
+
+    private void ShowSettingsMenu()
+    {
+        var menu = BuildSettingsMenu();
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
+        menu.Show(_settingsButton, new Point(_settingsButton.Width - menu.PreferredSize.Width, _settingsButton.Height));
     }
 
     protected override void Dispose(bool disposing)
@@ -180,12 +234,13 @@ internal sealed class MainForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 2,
             Margin = new Padding(0, 0, 0, 16),
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
         header.Controls.Add(new Label
         {
@@ -211,6 +266,17 @@ internal sealed class MainForm : Form
         }.WithColors(fore: () => Palette.TextMuted);
         header.Controls.Add(subtitle, 0, 1);
         header.SetColumnSpan(subtitle, 2);
+
+        _settingsButton.Name = "settings";
+        _settingsButton.Text = "Ajustes";
+        _settingsButton.Glyph = Icons.Settings;
+        _settingsButton.Kind = ButtonKind.Subtle;
+        _settingsButton.Size = new Size(LogicalToDeviceUnits(116), LogicalToDeviceUnits(38));
+        _settingsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _settingsButton.Margin = new Padding(0);
+        _settingsButton.Click += (_, _) => ShowSettingsMenu();
+        header.Controls.Add(_settingsButton, 2, 0);
+        header.SetRowSpan(_settingsButton, 2);
         return header;
     }
 
@@ -360,7 +426,7 @@ internal sealed class MainForm : Form
     {
         if (_pairing is null)
             return;
-        var menu = new ContextMenuStrip();
+        var menu = Menus.Create();
         var saved = _pairing.Registry.Saved;
         if (saved.Count == 0)
             menu.Items.Add(new ToolStripMenuItem("Ningún reloj vinculado") { Enabled = false });
