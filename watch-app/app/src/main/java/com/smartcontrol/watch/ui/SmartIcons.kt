@@ -63,6 +63,18 @@ object SmartIcons {
     /** Flechas arriba y abajo: cambiar de pantalla. */
     val Swipe = stroke("Swipe", "M8 20V4 M4.5 7.5L8 4l3.5 3.5 M16 4v16 M12.5 16.5L16 20l3.5-3.5")
 
+    /** Controles deslizantes: ajustes. */
+    val Settings = stroke("Settings", "M4 8h9 M17 8h3 M15 6v4 M4 16h3 M11 16h9 M9 14v4")
+
+    /** Círculo partido: tema claro u oscuro. */
+    val Theme = stroke("Theme", "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18z M12 3v18")
+
+    /** Globo terráqueo: idioma. */
+    val Language = stroke(
+        "Language",
+        "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18z M3 12h18 M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9 M12 3c-2.5 2.5-3.8 5.5-3.8 9s1.3 6.5 3.8 9",
+    )
+
     /** Interrogación dentro de un círculo: ayuda. */
     val Help = stroke(
         "Help",

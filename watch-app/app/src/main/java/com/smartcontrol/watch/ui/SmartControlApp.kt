@@ -22,6 +22,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -94,6 +95,9 @@ import com.smartcontrol.watch.commandFor
 import com.smartcontrol.watch.gesture.GestureEvent
 import com.smartcontrol.watch.gesture.Movement
 import com.smartcontrol.watch.recording.WindowRow
+import com.smartcontrol.watch.settings.LanguageChoice
+import com.smartcontrol.watch.settings.ThemeChoice
+import com.smartcontrol.watch.settings.next
 import com.smartcontrol.watch.gesture.WristGesture
 import kotlin.math.abs
 import kotlinx.coroutines.delay
@@ -109,6 +113,7 @@ private enum class Page(val mode: ControlMode?) {
     PRESENTATION(ControlMode.PRESENTATION),
     MULTIMEDIA(ControlMode.MULTIMEDIA),
     HELP(null),
+    SETTINGS(null),
 }
 
 /** Duración de la ventana de confirmación antes de cerrarse sola. */
@@ -132,6 +137,10 @@ fun SmartControlApp(
     linkState: StateFlow<LinkState> = MutableStateFlow(LinkState.Searching),
     sendToWindows: suspend (Command, ControlMode, String, Double) -> CommandOutcome = { _, _, _, _ -> CommandOutcome.NotConnected },
     sendWindowToWindows: suspend (ControlMode, String, Double, List<WindowRow>) -> CommandOutcome = { _, _, _, _ -> CommandOutcome.NotConnected },
+    themeChoice: ThemeChoice = ThemeChoice.SYSTEM,
+    onThemeChange: (ThemeChoice) -> Unit = {},
+    languageChoice: LanguageChoice = LanguageChoice.SYSTEM,
+    onLanguageChange: (LanguageChoice) -> Unit = {},
 ) {
     var state by remember { mutableStateOf(ControlState(simulationEnabled = simulationEnabled)) }
     val link by linkState.collectAsState()
@@ -195,11 +204,17 @@ fun SmartControlApp(
         }
     }
 
-    SmartControlTheme {
+    val dark = when (themeChoice) {
+        ThemeChoice.SYSTEM -> isSystemInDarkTheme()
+        ThemeChoice.LIGHT -> false
+        ThemeChoice.DARK -> true
+    }
+    SmartControlTheme(dark = dark) {
         AppScaffold {
             SmartControlScreen(
                 state = state,
                 link = link,
+                settings = SettingsState(themeChoice, onThemeChange, languageChoice, onLanguageChange),
                 feedbackTick = feedbackTick,
                 gesturesAvailable = gesturesAvailable,
                 onSelectMode = { state = state.selectMode(it) },
@@ -216,6 +231,7 @@ fun SmartControlApp(
 fun SmartControlScreen(
     state: ControlState,
     link: LinkState,
+    settings: SettingsState = SettingsState(),
     feedbackTick: Int,
     gesturesAvailable: Boolean,
     onSelectMode: (ControlMode) -> Unit,
@@ -247,7 +263,7 @@ fun SmartControlScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind { drawRect(pageBackground(pagerState)) },
+            .background(SmartColors.Background),
     ) {
         VerticalPager(
             state = pagerState,
@@ -274,6 +290,7 @@ fun SmartControlScreen(
                 when (val page = Page.entries[index]) {
                     Page.HOME -> HomePage(link)
                     Page.HELP -> HelpPage()
+                    Page.SETTINGS -> SettingsPage(settings)
                     else -> GesturePage(
                         mode = page.mode!!,
                         link = link,
@@ -301,18 +318,6 @@ fun SmartControlScreen(
         )
     }
 }
-
-/** Color de fondo que se mezcla poco a poco entre la pantalla actual y la siguiente al deslizar. */
-private fun pageBackground(pagerState: PagerState): Color {
-    val position = (pagerState.currentPage + pagerState.currentPageOffsetFraction)
-        .coerceIn(0f, (Page.entries.size - 1).toFloat())
-    val from = position.toInt()
-    val to = (from + 1).coerceAtMost(Page.entries.size - 1)
-    return lerp(Page.entries[from].background, Page.entries[to].background, position - from)
-}
-
-private val Page.background: Color
-    get() = SmartColors.Background
 
 /** Las pantallas que se alejan del centro se encogen, se desvanecen y se quedan un poco atrás. */
 private fun Modifier.pageTransition(pagerState: PagerState, page: Int): Modifier = graphicsLayer {
@@ -647,6 +652,71 @@ private fun HelpPage() {
     }
 }
 
+/** Ajustes actuales y cómo cambiarlos (los guarda la actividad). */
+data class SettingsState(
+    val theme: ThemeChoice = ThemeChoice.SYSTEM,
+    val onTheme: (ThemeChoice) -> Unit = {},
+    val language: LanguageChoice = LanguageChoice.SYSTEM,
+    val onLanguage: (LanguageChoice) -> Unit = {},
+)
+
+/** Ajustes: tema e idioma. Cada fila cambia a la siguiente opción al tocarla. */
+@Composable
+private fun SettingsPage(settings: SettingsState) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(SmartIcons.Settings, contentDescription = null, tint = SmartColors.Brand.main, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Ajustes", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft)
+        }
+        Spacer(Modifier.height(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingRow(SmartIcons.Theme, "Tema", settings.theme.label) {
+                settings.onTheme(settings.theme.next(ThemeChoice.entries))
+            }
+            SettingRow(SmartIcons.Language, "Idioma", settings.language.label) {
+                settings.onLanguage(settings.language.next(LanguageChoice.entries))
+            }
+        }
+    }
+}
+
+private val ThemeChoice.label: String
+    get() = when (this) {
+        ThemeChoice.SYSTEM -> "Sistema"
+        ThemeChoice.LIGHT -> "Claro"
+        ThemeChoice.DARK -> "Oscuro"
+    }
+
+private val LanguageChoice.label: String
+    get() = when (this) {
+        LanguageChoice.SYSTEM -> "Sistema"
+        LanguageChoice.SPANISH -> "Español"
+        LanguageChoice.ENGLISH -> "English"
+    }
+
+/** Fila de ajuste: icono, nombre y valor actual en el color principal. Tocarla cambia el valor. */
+@Composable
+private fun SettingRow(icon: ImageVector, name: String, value: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(50))
+            .background(SmartColors.Surface)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) {}
+            .padding(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
+    ) {
+        IconBadge(icon, tint = SmartColors.Brand.main, background = SmartColors.Brand.soft, size = 30.dp)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(name, fontSize = 12.sp, color = SmartColors.TextMuted, maxLines = 1)
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SmartColors.Brand.onSoft, maxLines = 1)
+        }
+    }
+}
+
 @Composable
 private fun HelpStep(icon: ImageVector, tone: Tone, text: String) {
     Row(
@@ -812,6 +882,7 @@ private data class ResultStyle(
     val detail: String,
 )
 
+@Composable
 private fun resultStyle(result: CommandResult?): ResultStyle? = when (result) {
     null -> null
     is CommandResult.Executed -> ResultStyle(
