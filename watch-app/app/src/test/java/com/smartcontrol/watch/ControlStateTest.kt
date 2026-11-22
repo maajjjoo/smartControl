@@ -152,7 +152,7 @@ class ControlStateTest {
     @Test
     fun windowsAnswerBecomesTheResult() {
         val sent = connected().sendCommand(Command.SLIDE_PREVIOUS)
-        val done = sent.complete(1, CommandOutcome.Executed)
+        val done = sent.complete(1, CommandOutcome.Executed())
         assertEquals(CommandResult.Executed(Command.SLIDE_PREVIOUS, 1), done.lastResult)
         assertNull(done.pending)
 
@@ -170,7 +170,7 @@ class ControlStateTest {
     fun oneCommandAtATime() {
         val sent = connected().sendCommand(Command.SLIDE_NEXT)
         assertSame("mientras espera, otro gesto no envía nada", sent, sent.sendCommand(Command.SLIDE_PREVIOUS))
-        assertSame("una respuesta de otro comando se ignora", sent, sent.complete(7, CommandOutcome.Executed))
+        assertSame("una respuesta de otro comando se ignora", sent, sent.complete(7, CommandOutcome.Executed()))
     }
 
     @Test
@@ -193,6 +193,29 @@ class ControlStateTest {
             assertEquals(gesture, gestureFor(commandFor(mode, gesture)))
         }
         assertTrue(Command.entries.all { command -> gestureFor(command)?.let { commandFor(command.mode, it) == command } ?: true })
+    }
+
+    @Test
+    fun withConnectionAMovementIsDecidedByWindows() {
+        val sent = connected().selectMode(ControlMode.MULTIMEDIA)
+            .sendMovement(GestureEvent.Recognized(WristGesture.TWIST_IN, 0.9f))
+        assertEquals("la acción la decide Windows", PendingCommand(null, 1), sent.pending)
+
+        val byAi = sent.complete(1, CommandOutcome.Executed("MEDIA_NEXT_TRACK", "AI", 0.93))
+        assertEquals(CommandResult.Executed(Command.MEDIA_NEXT_TRACK, 1, Recognition(true, 0.93)), byAi.lastResult)
+
+        val ignored = sent.complete(1, CommandOutcome.Failed("NO_GESTURE", "AI"))
+        assertEquals("La IA no vio un gesto", (ignored.lastResult as CommandResult.MovementIgnored).failure.label)
+
+        val refused = sent.complete(1, CommandOutcome.Failed("NO_MEDIA_SESSION", "RULES"))
+        assertEquals(CommandResult.Failed(null, RemoteFailure("NO_MEDIA_SESSION", "Abre la música en el equipo")), refused.lastResult)
+    }
+
+    @Test
+    fun withoutConnectionAMovementIsDecidedOnTheWatch() {
+        val state = ControlState(simulationEnabled = false).sendMovement(GestureEvent.Recognized(WristGesture.TWIST_OUT, 0.9f))
+        assertNull(state.pending)
+        assertEquals(CommandResult.Rejected(Command.SLIDE_NEXT, RejectReason.NO_CONNECTION), state.lastResult)
     }
 
     @Test

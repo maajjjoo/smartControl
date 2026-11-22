@@ -2,6 +2,7 @@ package com.smartcontrol.watch.link
 
 import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.ControlMode
+import com.smartcontrol.watch.recording.WindowRow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.BufferedReader
@@ -29,11 +30,14 @@ sealed interface LinkState {
 
 /** Qué pasó con un comando enviado a Windows. */
 sealed interface CommandOutcome {
-    /** Windows lo validó y realizó la acción. */
-    data object Executed : CommandOutcome
+    /**
+     * Windows lo validó y realizó la acción [action] (nombre del protocolo). En una ventana,
+     * [recognizedBy] dice si decidió la IA («AI») o las reglas («RULES»), con [confidence].
+     */
+    data class Executed(val action: String? = null, val recognizedBy: String? = null, val confidence: Double? = null) : CommandOutcome
 
     /** Windows lo rechazó o no pudo realizarlo; [reasonCode] es el motivo de Windows. */
-    data class Failed(val reasonCode: String) : CommandOutcome
+    data class Failed(val reasonCode: String, val recognizedBy: String? = null) : CommandOutcome
 
     /** No hay conexión con Windows: no se envió nada. */
     data object NotConnected : CommandOutcome
@@ -161,11 +165,31 @@ class LinkSession(
     /** Envía un comando y espera la respuesta de Windows (como mucho [timeoutMs]). */
     suspend fun send(command: Command, mode: ControlMode, gestureId: String, confidence: Double, timeoutMs: Long = 3000): CommandOutcome {
         val key = token ?: return CommandOutcome.NotConnected
+        return request(timeoutMs) { messageId ->
+            LinkMessages.command(storage.deviceId, key, mode, gestureId, confidence, command, now(), messageId)
+        }
+    }
+
+    /** Envía la ventana de un movimiento para que decida la IA de Windows, y espera la respuesta. */
+    suspend fun sendWindow(
+        mode: ControlMode,
+        detectorEvent: String,
+        detectorConfidence: Double,
+        window: List<WindowRow>,
+        timeoutMs: Long = 3000,
+    ): CommandOutcome {
+        val key = token ?: return CommandOutcome.NotConnected
+        return request(timeoutMs) { messageId ->
+            LinkMessages.sensorWindow(storage.deviceId, key, mode, detectorEvent, detectorConfidence, window, now(), messageId)
+        }
+    }
+
+    private suspend fun request(timeoutMs: Long, build: (String) -> String): CommandOutcome {
         val messageId = LinkMessages.newMessageId()
         val answer = CompletableDeferred<Incoming.CommandResponse>()
         pending[messageId] = answer
         try {
-            writeLine(LinkMessages.command(storage.deviceId, key, mode, gestureId, confidence, command, now(), messageId))
+            writeLine(build(messageId))
         } catch (_: IOException) {
             pending.remove(messageId)
             return CommandOutcome.NotConnected
@@ -179,8 +203,8 @@ class LinkSession(
         }
         return when {
             response == null -> CommandOutcome.NoResponse
-            response.status == "EXECUTED" -> CommandOutcome.Executed
-            else -> CommandOutcome.Failed(response.reasonCode)
+            response.status == "EXECUTED" -> CommandOutcome.Executed(response.action, response.recognizedBy, response.confidence)
+            else -> CommandOutcome.Failed(response.reasonCode, response.recognizedBy)
         }
     }
 

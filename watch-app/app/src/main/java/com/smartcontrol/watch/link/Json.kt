@@ -6,7 +6,7 @@ package com.smartcontrol.watch.link
  */
 internal object Json {
 
-    /** Escribe un objeto. Los valores pueden ser String, Number, Boolean, null o Map<String, Any?>. */
+    /** Escribe un objeto. Los valores pueden ser String, Number, Boolean, null, Map<String, Any?> o List. */
     fun write(values: Map<String, Any?>): String = buildString { writeValue(this, values) }
 
     private fun writeValue(out: StringBuilder, value: Any?) {
@@ -20,6 +20,14 @@ internal object Json {
                 out.append(value.toString())
             }
             is Float -> writeValue(out, value.toDouble())
+            is List<*> -> {
+                out.append('[')
+                value.forEachIndexed { i, item ->
+                    if (i > 0) out.append(',')
+                    writeValue(out, item)
+                }
+                out.append(']')
+            }
             is Map<*, *> -> {
                 out.append('{')
                 var first = true
@@ -53,7 +61,8 @@ internal object Json {
     }
 
     /**
-     * Lee un objeto JSON. Los números enteros llegan como Long y los decimales como Double.
+     * Lee un objeto JSON. Los números enteros llegan como Long, los decimales como Double y las
+     * listas como List.
      * Lanza [IllegalArgumentException] si el texto no es un objeto JSON válido.
      */
     fun parseObject(text: String): Map<String, Any?> {
@@ -105,10 +114,33 @@ internal object Json {
             }
         }
 
+        private fun readArray(depth: Int): List<Any?> {
+            require(depth < 8) { "demasiado anidado" }
+            expect('[')
+            val result = ArrayList<Any?>()
+            skipSpace()
+            if (pos < text.length && text[pos] == ']') {
+                pos++
+                return result
+            }
+            while (true) {
+                skipSpace()
+                result += readValue(depth)
+                skipSpace()
+                require(pos < text.length) { "lista sin cerrar" }
+                when (text[pos++]) {
+                    ',' -> continue
+                    ']' -> return result
+                    else -> throw IllegalArgumentException("se esperaba ',' o ']'")
+                }
+            }
+        }
+
         private fun readValue(depth: Int): Any? {
             require(pos < text.length) { "falta un valor" }
             return when (val c = text[pos]) {
                 '{' -> readObject(depth + 1)
+                '[' -> readArray(depth + 1)
                 '"' -> readString()
                 't' -> literal("true", true)
                 'f' -> literal("false", false)

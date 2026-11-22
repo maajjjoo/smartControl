@@ -70,7 +70,7 @@ class LinkMessagesTest {
         assertEquals(Incoming.PairAccepted("c-1", "abc", "PORTATIL", 99), LinkMessages.parse(msg("PAIR_ACCEPTED", """{"sessionToken":"abc","pcName":"PORTATIL","serverTimeUtc":99}""")))
         assertEquals(Incoming.HelloRejected("c-1", "UNAUTHORIZED_DEVICE"), LinkMessages.parse(msg("HELLO_REJECTED", """{"reasonCode":"UNAUTHORIZED_DEVICE"}""")))
         assertEquals(
-            Incoming.CommandResponse("c-1", "EXECUTED", "OK"),
+            Incoming.CommandResponse("c-1", "EXECUTED", "OK", action = "SLIDE_NEXT"),
             LinkMessages.parse(msg("COMMAND_RESPONSE", """{"status":"EXECUTED","executedAction":"SLIDE_NEXT","validatedAction":"SLIDE_NEXT","reasonCode":"OK","message":"x"}""")),
         )
         assertNull("código que no es de 4 cifras", LinkMessages.parse(msg("PAIR_PENDING", """{"code":"12a4","pcName":"P"}""")))

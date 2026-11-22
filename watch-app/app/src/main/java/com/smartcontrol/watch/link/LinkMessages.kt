@@ -2,6 +2,7 @@ package com.smartcontrol.watch.link
 
 import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.ControlMode
+import com.smartcontrol.watch.recording.WindowRow
 import java.util.UUID
 
 /** Respuesta de un PC con SmartControl a la búsqueda en la red. */
@@ -17,7 +18,18 @@ sealed interface Incoming {
     data class HelloAck(override val correlationId: String?, val pcName: String, val serverTimeUtc: Long) : Incoming
     data class HelloRejected(override val correlationId: String?, val reasonCode: String) : Incoming
     data class Pong(override val correlationId: String?, val serverTimeUtc: Long) : Incoming
-    data class CommandResponse(override val correlationId: String?, val status: String, val reasonCode: String) : Incoming
+    /**
+     * Respuesta a un comando o a una ventana. [action] es la acción validada o ejecutada; en una
+     * ventana, [recognizedBy] dice quién decidió («AI» o «RULES») y [confidence], con qué seguridad.
+     */
+    data class CommandResponse(
+        override val correlationId: String?,
+        val status: String,
+        val reasonCode: String,
+        val action: String? = null,
+        val recognizedBy: String? = null,
+        val confidence: Double? = null,
+    ) : Incoming
 }
 
 /**
@@ -97,6 +109,41 @@ object LinkMessages {
             ),
         )
 
+    /**
+     * SENSOR_WINDOW (protocolo §3.3): las lecturas del giroscopio de un movimiento, para que decida
+     * la IA de Windows. [detectorEvent] es lo que dijeron las reglas del reloj (TWIST_OUT, TWIST_IN o
+     * UNCLEAR); Windows lo usa solo si no tiene un modelo entrenado.
+     */
+    fun sensorWindow(
+        deviceId: String,
+        sessionToken: String,
+        mode: ControlMode,
+        detectorEvent: String,
+        detectorConfidence: Double,
+        window: List<WindowRow>,
+        nowMs: Long,
+        messageId: String = newMessageId(),
+    ): String =
+        Json.write(
+            linkedMapOf(
+                "protocolVersion" to PROTOCOL_VERSION,
+                "messageId" to messageId,
+                "timestampUtc" to nowMs,
+                "deviceId" to deviceId,
+                "sessionToken" to sessionToken,
+                "messageType" to "SENSOR_WINDOW",
+                "payload" to linkedMapOf(
+                    "activeMode" to mode.name,
+                    "detectorEvent" to detectorEvent,
+                    "detectorConfidence" to detectorConfidence.coerceIn(0.0, 1.0),
+                    // Cuatro decimales bastan (el giroscopio no da más precisión) y el mensaje es más corto.
+                    "gyroscope" to window.map { listOf(it.tOffsetMs, round4(it.x), round4(it.y), round4(it.z)) },
+                ),
+            ),
+        )
+
+    private fun round4(value: Float): Double = Math.round(value * 10_000.0) / 10_000.0
+
     /** Lee una línea de Windows. Devuelve null si no es un mensaje conocido y bien formado. */
     fun parse(line: String): Incoming? {
         val root = try {
@@ -128,6 +175,9 @@ object LinkMessages {
                 correlationId,
                 text("status") ?: return null,
                 text("reasonCode") ?: return null,
+                action = text("executedAction") ?: text("validatedAction"),
+                recognizedBy = text("recognizedBy"),
+                confidence = (payload["confidence"] as? Number)?.toDouble(),
             )
             else -> null
         }

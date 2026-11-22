@@ -11,6 +11,7 @@ import android.util.Log
 import com.smartcontrol.watch.BuildConfig
 import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.ControlMode
+import com.smartcontrol.watch.recording.WindowRow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -90,6 +91,12 @@ class WindowsLink(context: Context, private val scope: CoroutineScope) {
     suspend fun send(command: Command, mode: ControlMode, gestureId: String, confidence: Double): CommandOutcome {
         val current = session ?: return CommandOutcome.NotConnected
         return withContext(Dispatchers.IO) { current.send(command, mode, gestureId, confidence) }
+    }
+
+    /** Envía la ventana de un movimiento: Windows decide el gesto con su IA. */
+    suspend fun sendWindow(mode: ControlMode, detectorEvent: String, detectorConfidence: Double, window: List<WindowRow>): CommandOutcome {
+        val current = session ?: return CommandOutcome.NotConnected
+        return withContext(Dispatchers.IO) { current.sendWindow(mode, detectorEvent, detectorConfidence, window) }
     }
 
     /**

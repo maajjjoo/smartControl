@@ -6,7 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
-import com.smartcontrol.watch.gesture.GestureEvent
+import com.smartcontrol.watch.gesture.Movement
 import com.smartcontrol.watch.gesture.GyroscopeGestureSource
 import com.smartcontrol.watch.gesture.SyntheticGestures
 import com.smartcontrol.watch.link.WindowsLink
@@ -15,16 +15,16 @@ import com.smartcontrol.watch.ui.SmartControlApp
 import kotlinx.coroutines.flow.MutableSharedFlow
 
 class MainActivity : ComponentActivity() {
-    private val gestureEvents = MutableSharedFlow<GestureEvent>(extraBufferCapacity = 8)
+    private val gestureEvents = MutableSharedFlow<Movement>(extraBufferCapacity = 8)
     private lateinit var gestures: GyroscopeGestureSource
     private lateinit var windows: WindowsLink
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.decorView.setBackgroundColor(SmartColors.Background.toArgb())
-        gestures = GyroscopeGestureSource(this) { event ->
-            CommandLog.record(event)
-            gestureEvents.tryEmit(event)
+        gestures = GyroscopeGestureSource(this) { movement ->
+            CommandLog.record(movement.event)
+            gestureEvents.tryEmit(movement)
         }
         windows = WindowsLink(this, lifecycleScope)
         setContent {
@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
                 gesturesAvailable = gestures.isAvailable,
                 linkState = windows.state,
                 sendToWindows = windows::send,
+                sendWindowToWindows = windows::sendWindow,
             )
         }
     }

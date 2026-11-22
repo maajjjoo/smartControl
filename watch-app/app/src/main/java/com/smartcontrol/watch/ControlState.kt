@@ -52,7 +52,7 @@ data class RemoteFailure(val code: String, val label: String) {
             is CommandOutcome.Failed -> RemoteFailure(outcome.reasonCode, labelFor(outcome.reasonCode))
             CommandOutcome.NoResponse -> RemoteFailure("NO_RESPONSE", "Windows no respondió")
             CommandOutcome.NotConnected -> RemoteFailure("NOT_CONNECTED", "Se perdió la conexión")
-            CommandOutcome.Executed -> RemoteFailure("OK", "")
+            is CommandOutcome.Executed -> RemoteFailure("OK", "")
         }
 
         private fun labelFor(code: String): String = when (code) {
@@ -63,24 +63,35 @@ data class RemoteFailure(val code: String, val label: String) {
             "STALE_MESSAGE", "FUTURE_TIMESTAMP" -> "Llegó tarde; inténtalo otra vez"
             "MODE_ACTION_MISMATCH", "RECEIVER_MODE_MISMATCH", "ACTION_NOT_IN_ALLOWLIST" -> "No disponible en este modo"
             "BELOW_THRESHOLD" -> "Gesto poco claro"
+            "NO_GESTURE" -> "La IA no vio un gesto"
+            "LOW_CONFIDENCE" -> "La IA no está segura"
             else -> "Windows no pudo hacerlo"
         }
     }
 }
 
-/** Comando enviado a Windows que espera su respuesta. */
-data class PendingCommand(val command: Command, val sequence: Int)
+/**
+ * Lo enviado a Windows que espera respuesta: un comando concreto, o un movimiento ([command] null)
+ * cuyo gesto decide la IA de Windows.
+ */
+data class PendingCommand(val command: Command?, val sequence: Int)
+
+/** Quién reconoció el gesto en Windows: la IA (con su confianza) o las reglas del reloj. */
+data class Recognition(val byAi: Boolean, val confidence: Double?)
 
 /** Resultado de la última acción. Nada sale del reloj. */
 sealed interface CommandResult {
     /** Validado contra la lista blanca y ejecutado solo en modo simulación (pruebas sin Windows). */
     data class Simulated(val command: Command, val sequence: Int) : CommandResult
 
-    /** Windows confirmó que realizó la acción. */
-    data class Executed(val command: Command, val sequence: Int) : CommandResult
+    /** Windows confirmó que realizó la acción. [recognition] dice quién reconoció el gesto, si fue un movimiento. */
+    data class Executed(val command: Command, val sequence: Int, val recognition: Recognition? = null) : CommandResult
 
-    /** Windows no lo realizó, o no respondió. */
-    data class Failed(val command: Command, val failure: RemoteFailure) : CommandResult
+    /** Windows no lo realizó, o no respondió. [command] es null si era un movimiento sin acción decidida. */
+    data class Failed(val command: Command?, val failure: RemoteFailure) : CommandResult
+
+    /** Windows (su IA o las reglas) decidió que el movimiento no era un gesto: no se hizo nada. */
+    data class MovementIgnored(val failure: RemoteFailure) : CommandResult
     data class Rejected(val command: Command, val reason: RejectReason) : CommandResult
 
     /** Equivale a REJECTED_LOW_CONFIDENCE: el movimiento no se reconoció como gesto; no se envía nada. */
@@ -153,15 +164,43 @@ data class ControlState(
         }
     }
 
-    /** Respuesta de Windows al comando [sequence]. Una respuesta de otro comando se ignora. */
+    /**
+     * Un movimiento con su ventana, cuando hay conexión: se envía a Windows y su IA decide el gesto
+     * (o, sin modelo entrenado, lo que dijeron las reglas). Sin conexión se valida aquí como antes.
+     */
+    fun sendMovement(event: GestureEvent): ControlState = when {
+        connection != ConnectionStatus.CONNECTED -> onGesture(event)
+        pending != null -> this
+        else -> copy(sentCount = sentCount + 1, pending = PendingCommand(null, sentCount + 1))
+    }
+
+    /** Respuesta de Windows al envío [sequence]. Una respuesta de otro envío se ignora. */
     fun complete(sequence: Int, outcome: CommandOutcome): ControlState {
         val sent = pending?.takeIf { it.sequence == sequence } ?: return this
-        val result = if (outcome == CommandOutcome.Executed) {
-            CommandResult.Executed(sent.command, sequence)
-        } else {
-            CommandResult.Failed(sent.command, RemoteFailure.from(outcome))
+        val result = when (outcome) {
+            is CommandOutcome.Executed -> {
+                val command = sent.command ?: Command.entries.firstOrNull { it.name == outcome.action }
+                val recognition = outcome.recognizedBy?.let { Recognition(it == "AI", outcome.confidence) }
+                if (command != null) {
+                    CommandResult.Executed(command, sequence, recognition)
+                } else {
+                    CommandResult.Failed(null, RemoteFailure("UNKNOWN_ACTION", "Windows no pudo hacerlo"))
+                }
+            }
+            is CommandOutcome.Failed ->
+                if (sent.command == null && outcome.reasonCode in NOT_A_GESTURE) {
+                    CommandResult.MovementIgnored(RemoteFailure.from(outcome))
+                } else {
+                    CommandResult.Failed(sent.command, RemoteFailure.from(outcome))
+                }
+            else -> CommandResult.Failed(sent.command, RemoteFailure.from(outcome))
         }
         return copy(pending = null, lastResult = result)
+    }
+
+    private companion object {
+        /** Motivos con los que Windows dice que un movimiento no era un gesto. */
+        val NOT_A_GESTURE = setOf("NO_GESTURE", "LOW_CONFIDENCE", "BELOW_THRESHOLD")
     }
 
     /**

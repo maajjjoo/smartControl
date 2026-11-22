@@ -7,20 +7,33 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.util.Log
 import com.smartcontrol.watch.BuildConfig
+import com.smartcontrol.watch.recording.CutResult
+import com.smartcontrol.watch.recording.SampleBuffer
+import com.smartcontrol.watch.recording.TimedSample
+import com.smartcontrol.watch.recording.WindowCutter
+import com.smartcontrol.watch.recording.WindowRow
+
+/**
+ * Un movimiento segmentado por las reglas del reloj, con las lecturas del giroscopio del tramo
+ * ([window], o null si no se pudo recortar). Windows usa la ventana para que decida la IA.
+ */
+data class Movement(val event: GestureEvent, val window: List<WindowRow>?)
 
 /**
  * Conecta el giroscopio del reloj con [WristGestureDetector]. Solo escucha entre [start] y [stop]
  * (la actividad lo hace en onResume/onPause), para no gastar batería en segundo plano (RNF-10).
+ * Guarda las últimas lecturas para recortar la ventana de cada movimiento.
  * Los eventos llegan en el hilo principal.
  */
 class GyroscopeGestureSource(
     context: Context,
-    private val onEvent: (GestureEvent) -> Unit,
+    private val onEvent: (Movement) -> Unit,
 ) : SensorEventListener {
 
     private val sensorManager = context.getSystemService(SensorManager::class.java)
     private val gyroscope: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val detector = WristGestureDetector()
+    private val recent = SampleBuffer()
 
     /** false si el reloj no tiene giroscopio: la interfaz debe decirlo en vez de fingir gestos. */
     val isAvailable: Boolean get() = gyroscope != null
@@ -29,6 +42,7 @@ class GyroscopeGestureSource(
         val sensor = gyroscope ?: return
         // Descarta un gesto a medias pero conserva la espera y el estado desarmado.
         detector.onSensorRestart()
+        recent.clear()
         // SENSOR_DELAY_GAME (~50 Hz) basta para giros rápidos sin pedir permisos de alta frecuencia.
         sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
     }
@@ -41,7 +55,15 @@ class GyroscopeGestureSource(
         val (x, y, z) = event.values
         lastTimestampNanos = event.timestamp
         if (traceSamples) Log.v(TRACE_TAG, "t=${event.timestamp / 1_000_000} x=$x y=$y z=$z")
-        detector.onSample(event.timestamp, x, y, z)?.let(onEvent)
+        onSample(event.timestamp, x, y, z)
+    }
+
+    private fun onSample(timestampNanos: Long, x: Float, y: Float, z: Float) {
+        recent.add(TimedSample(timestampNanos, x, y, z))
+        detector.onSample(timestampNanos, x, y, z)?.let { event ->
+            val window = (WindowCutter.cut(recent, event.startNanos, event.endNanos) as? CutResult.Window)?.rows
+            onEvent(Movement(event, window))
+        }
     }
 
     private var lastTimestampNanos = 0L
@@ -56,8 +78,9 @@ class GyroscopeGestureSource(
         if (!BuildConfig.DEBUG) return
         val start = lastTimestampNanos + SyntheticGestures.STEP_NANOS
         samples.forEachIndexed { i, s ->
-            detector.onSample(start + i * SyntheticGestures.STEP_NANOS, s.x, s.y, s.z)?.let(onEvent)
+            onSample(start + i * SyntheticGestures.STEP_NANOS, s.x, s.y, s.z)
         }
+        lastTimestampNanos = start + samples.size * SyntheticGestures.STEP_NANOS
     }
 
     /**

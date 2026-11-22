@@ -2,6 +2,7 @@ package com.smartcontrol.watch.link
 
 import com.smartcontrol.watch.Command
 import com.smartcontrol.watch.ControlMode
+import com.smartcontrol.watch.recording.WindowRow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -150,7 +151,7 @@ class LinkSessionTest {
         link.handshake {}
         thread(isDaemon = true) { runCatching { link.readLoop() } }
 
-        assertEquals(CommandOutcome.Executed, link.send(Command.SLIDE_NEXT, ControlMode.PRESENTATION, "WRIST_TWIST_OUT", 0.9))
+        assertEquals(CommandOutcome.Executed("SLIDE_NEXT"), link.send(Command.SLIDE_NEXT, ControlMode.PRESENTATION, "WRIST_TWIST_OUT", 0.9))
         assertEquals(CommandOutcome.Failed("NO_MEDIA_SESSION"), link.send(Command.MEDIA_PLAY, ControlMode.MULTIMEDIA, "WRIST_TWIST_OUT", 0.9))
 
         windows.next() // HELLO
@@ -158,6 +159,39 @@ class LinkSessionTest {
         val stamped = command["timestampUtc"] as Long
         assertTrue("la hora del comando es la de Windows", kotlin.math.abs(stamped - (watchClock() + offsetAtHello)) < 2_000)
         assertEquals("clave", command["sessionToken"])
+    }
+
+    @Test
+    fun movementWindowsAreDecidedByWindowsAI() = runBlocking {
+        val windows = FakeWindows { message, out ->
+            when (message["messageType"]) {
+                "HELLO" -> out.println(reply("HELLO_ACK", message["messageId"], """{"pcName":"P","serverTimeUtc":1}"""))
+                "SENSOR_WINDOW" -> out.println(
+                    reply(
+                        "COMMAND_RESPONSE", message["messageId"],
+                        """{"status":"EXECUTED","executedAction":"MEDIA_NEXT_TRACK","validatedAction":"MEDIA_NEXT_TRACK","reasonCode":"OK","message":"x","recognizedBy":"AI","gesture":"TWIST_OUT","confidence":0.934}""",
+                    ),
+                )
+            }
+        }
+        val storage = MemoryStorage().apply { save("pc-1", "P", "clave") }
+        val link = session(windows, storage)
+        link.handshake {}
+        thread(isDaemon = true) { runCatching { link.readLoop() } }
+        val rows = (0 until 12).map { WindowRow(it * 20, if (it in 4..7) 4.123456f else 0f, 0f, 0f) }
+
+        val outcome = link.sendWindow(ControlMode.MULTIMEDIA, "TWIST_IN", 0.85, rows)
+        assertEquals(CommandOutcome.Executed("MEDIA_NEXT_TRACK", "AI", 0.934), outcome)
+
+        windows.next() // HELLO
+        val sent = windows.next()
+        assertEquals("SENSOR_WINDOW", sent["messageType"])
+        val payload = sent["payload"] as Map<*, *>
+        assertEquals(setOf("activeMode", "detectorEvent", "detectorConfidence", "gyroscope"), payload.keys)
+        assertEquals("TWIST_IN", payload["detectorEvent"])
+        val gyroscope = payload["gyroscope"] as List<*>
+        assertEquals(12, gyroscope.size)
+        assertEquals(listOf(100L, 4.1235, 0.0, 0.0), gyroscope[5])
     }
 
     @Test

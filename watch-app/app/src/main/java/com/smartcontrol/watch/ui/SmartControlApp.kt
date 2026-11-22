@@ -90,8 +90,11 @@ import com.smartcontrol.watch.link.CommandOutcome
 import com.smartcontrol.watch.link.LinkState
 import com.smartcontrol.watch.ControlMode
 import com.smartcontrol.watch.ControlState
+import com.smartcontrol.watch.PendingCommand
 import com.smartcontrol.watch.commandFor
 import com.smartcontrol.watch.gesture.GestureEvent
+import com.smartcontrol.watch.gesture.Movement
+import com.smartcontrol.watch.recording.WindowRow
 import com.smartcontrol.watch.gesture.WristGesture
 import kotlin.math.abs
 import kotlinx.coroutines.delay
@@ -125,10 +128,11 @@ private const val TOUCH_GUARD_MILLIS = 400L
 @Composable
 fun SmartControlApp(
     simulationEnabled: Boolean = true,
-    gestureEvents: Flow<GestureEvent> = emptyFlow(),
+    gestureEvents: Flow<Movement> = emptyFlow(),
     gesturesAvailable: Boolean = false,
     linkState: StateFlow<LinkState> = MutableStateFlow(LinkState.Searching),
     sendToWindows: suspend (Command, ControlMode, String, Double) -> CommandOutcome = { _, _, _, _ -> CommandOutcome.NotConnected },
+    sendWindowToWindows: suspend (ControlMode, String, Double, List<WindowRow>) -> CommandOutcome = { _, _, _, _ -> CommandOutcome.NotConnected },
 ) {
     var state by remember { mutableStateOf(ControlState(simulationEnabled = simulationEnabled)) }
     val link by linkState.collectAsState()
@@ -152,15 +156,12 @@ fun SmartControlApp(
      * Aplica el resultado de validar un gesto o un toque. Si el comando hay que enviarlo a Windows,
      * el resultado se muestra cuando llega su respuesta.
      */
-    fun apply(next: ControlState, gestureId: String, confidence: Double) {
+    fun apply(next: ControlState, send: suspend (PendingCommand) -> CommandOutcome) {
         val sent = next.pending
         when {
             sent != null && sent != state.pending -> {
                 state = next
-                scope.launch {
-                    val outcome = sendToWindows(sent.command, next.mode, gestureId, confidence)
-                    show(state.complete(sent.sequence, outcome))
-                }
+                scope.launch { show(state.complete(sent.sequence, send(sent))) }
             }
             // Ya hay un comando esperando respuesta: el nuevo se ignora para no encadenar acciones.
             sent != null -> Unit
@@ -173,11 +174,25 @@ fun SmartControlApp(
     }
 
     LaunchedEffect(gestureEvents) {
-        gestureEvents.collect { event ->
+        gestureEvents.collect { movement ->
             if (!onModePage) return@collect
-            // Solo un gesto reconocido genera un comando; los demás no llegan a enviarse.
+            val event = movement.event
+            val window = movement.window
             val recognized = event as? GestureEvent.Recognized
-            apply(state.onGesture(event), recognized?.gesture?.id ?: "", recognized?.confidence?.toDouble() ?: 0.0)
+            if (window != null && state.connection == ConnectionStatus.CONNECTED) {
+                // Decide la IA de Windows con la ventana del movimiento (o sus reglas, sin modelo).
+                val detector = recognized?.gesture?.name ?: "UNCLEAR"
+                val confidence = when (event) {
+                    is GestureEvent.Recognized -> event.confidence
+                    is GestureEvent.Unclear -> event.confidence
+                }
+                apply(state.sendMovement(event)) { sendWindowToWindows(state.mode, detector, confidence.toDouble(), window) }
+            } else {
+                // Sin ventana o sin conexión: el reloj decide con sus reglas, como antes.
+                apply(state.onGesture(event)) { sent ->
+                    sendToWindows(sent.command!!, state.mode, recognized?.gesture?.id ?: "", recognized?.confidence?.toDouble() ?: 0.0)
+                }
+            }
         }
     }
 
@@ -190,7 +205,9 @@ fun SmartControlApp(
                 gesturesAvailable = gesturesAvailable,
                 onSelectMode = { state = state.selectMode(it) },
                 onModePageChange = { onModePage = it },
-                onCommand = { command -> apply(state.sendCommand(command), gestureFor(command)?.id ?: SCREEN_TAP_ID, 1.0) },
+                onCommand = { command ->
+                    apply(state.sendCommand(command)) { sendToWindows(command, state.mode, gestureFor(command)?.id ?: SCREEN_TAP_ID, 1.0) }
+                },
             )
         }
     }
@@ -791,7 +808,17 @@ private fun resultStyle(result: CommandResult?): ResultStyle? = when (result) {
         icon = SmartIcons.Check,
         tone = SmartColors.Success,
         title = "Hecho",
-        detail = result.command.feedbackLabel,
+        detail = result.command.feedbackLabel + when {
+            result.recognition == null -> ""
+            result.recognition.byAi -> result.recognition.confidence?.let { " · IA ${Math.round(it * 100)} %" } ?: " · IA"
+            else -> " · reglas"
+        },
+    )
+    is CommandResult.MovementIgnored -> ResultStyle(
+        icon = SmartIcons.Close,
+        tone = SmartColors.Rejected,
+        title = "Gesto no reconocido",
+        detail = result.failure.label,
     )
     is CommandResult.Failed -> ResultStyle(
         icon = SmartIcons.Close,

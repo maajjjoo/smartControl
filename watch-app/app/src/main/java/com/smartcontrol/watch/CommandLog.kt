@@ -16,8 +16,10 @@ object CommandLog {
         val detail = when (val result = state.lastResult) {
             null -> return
             is CommandResult.Simulated -> "command=${result.command.name} -> SIMULATED seq=${result.sequence}"
-            is CommandResult.Executed -> "command=${result.command.name} -> EXECUTED seq=${result.sequence}"
-            is CommandResult.Failed -> "command=${result.command.name} -> FAILED reason=${result.failure.code}"
+            is CommandResult.Executed -> "command=${result.command.name} -> EXECUTED seq=${result.sequence}" +
+                (result.recognition?.let { " by=${if (it.byAi) "AI" else "RULES"} confidence=${it.confidence?.let { c -> "%.2f".format(c) } ?: "-"}" } ?: "")
+            is CommandResult.Failed -> "command=${result.command?.name ?: "-"} -> FAILED reason=${result.failure.code}"
+            is CommandResult.MovementIgnored -> "movement -> NOT_A_GESTURE reason=${result.failure.code}"
             is CommandResult.Rejected -> "command=${result.command.name} -> REJECTED reason=${result.reason.name}"
             is CommandResult.GestureUnrecognized ->
                 "no command -> REJECTED_LOW_CONFIDENCE reason=${result.reason.name} confidence=${"%.2f".format(result.confidence)}"
