@@ -14,7 +14,7 @@ import com.smartcontrol.watch.ControlMode
  * definen colores propios.
  */
 
-/** Familia de un color: tono principal, versión oscura (degradados), fondo suave y textos encima. */
+/** Familia de un color: tono principal, versión oscura (pulsado), fondo suave y textos encima. */
 @Immutable
 data class Tone(
     val main: Color,
@@ -24,69 +24,55 @@ data class Tone(
     val onSoft: Color,
 )
 
+/*
+ * Diseño minimalista con un solo color principal (decisión del 2026-11-22): vinotinto para todo lo
+ * que se toca o está activo, su versión rosada para fondos suaves, y el resto en grises neutros.
+ * La única excepción es el error: un rojo más vivo, siempre sobre gris y con una X, para que no se
+ * confunda con el vinotinto de un acierto (que va sobre rosado y con una ✓).
+ */
 object SmartColors {
-    // Base clara
-    val Background = Color(0xFFF2F5FB)
-    val Surface = Color(0xFFFFFFFF)
-    val Text = Color(0xFF151C2B)
-    val TextMuted = Color(0xFF5E687A)
-    val Outline = Color(0xFFDCE2EC)
+    // Base neutra
+    val Background = Color(0xFFFFFFFF)
+    val Surface = Color(0xFFF4F4F5)
+    val Text = Color(0xFF18181B)
+    val TextMuted = Color(0xFF63636B)
+    val Outline = Color(0xFFE4E4E7)
     val Transparent = Color.Transparent
 
-    // Familias de color
-    val Blue = Tone(
-        main = Color(0xFF2563EB), dark = Color(0xFF1D4ED8),
-        soft = Color(0xFFE3ECFF), onMain = Color.White, onSoft = Color(0xFF1E3A8A),
+    /** El color principal: vinotinto, con rosado de fondo. Contraste del texto ≥ 9:1. */
+    val Wine = Tone(
+        main = Color(0xFF8E1C3A), dark = Color(0xFF761530),
+        soft = Color(0xFFFBEAF0), onMain = Color.White, onSoft = Color(0xFF6E1530),
     )
-    val Indigo = Tone(
-        main = Color(0xFF4F6BF0), dark = Color(0xFF3B4FD0),
-        soft = Color(0xFFE6EAFE), onMain = Color.White, onSoft = Color(0xFF2B378F),
+
+    /** Grises: estados inactivos (buscando, sin Wi-Fi). */
+    val Neutral = Tone(
+        main = Color(0xFF71717A), dark = Color(0xFF52525B),
+        soft = Color(0xFFF4F4F5), onMain = Color.White, onSoft = Color(0xFF3F3F46),
     )
-    val Violet = Tone(
-        main = Color(0xFF7C4DEB), dark = Color(0xFF6236CF),
-        soft = Color(0xFFEFE8FF), onMain = Color.White, onSoft = Color(0xFF4B2596),
-    )
-    val Green = Tone(
-        main = Color(0xFF16A35A), dark = Color(0xFF0F8547),
-        soft = Color(0xFFE1F6EA), onMain = Color.White, onSoft = Color(0xFF0B5E33),
-    )
-    val Amber = Tone(
-        main = Color(0xFFF08C00), dark = Color(0xFFD27400),
-        soft = Color(0xFFFFF1DC), onMain = Color.White, onSoft = Color(0xFF8A4B00),
-    )
-    val Red = Tone(
-        main = Color(0xFFDC3B30), dark = Color(0xFFB92C23),
-        soft = Color(0xFFFDE8E6), onMain = Color.White, onSoft = Color(0xFF9A2019),
-    )
-    val Gray = Tone(
-        main = Color(0xFF8A94A6), dark = Color(0xFF6B7488),
-        soft = Color(0xFFF0F2F6), onMain = Color.White, onSoft = Color(0xFF4A5366),
+
+    /**
+     * Error discreto: la X en rojo sobre un círculo blanco, con fondo y texto grises. [main] es el
+     * fondo del círculo y [onMain] el color de la X.
+     */
+    val Error = Tone(
+        main = Color.White, dark = Color.White,
+        soft = Color(0xFFF4F4F5), onMain = Color(0xFFC62828), onSoft = Color(0xFF3F3F46),
     )
 
     // Significado de cada color en la app
-    val Brand = Blue
-    val Success = Green
-    val Rejected = Red
-    val Idle = Gray
-    val Disconnected = Red
-    val Connected = Green
+    val Brand = Wine
+    val Success = Wine
+    val Connected = Wine
+    val Rejected = Error
+    val Idle = Neutral
+    val Disconnected = Neutral
 
-    /** Degradado del título "SmartControl". */
-    val TitleGradient = listOf(Blue.main, Violet.main)
+    /** Mismo color para los dos modos: la pantalla los distingue por título e icono. */
+    fun forMode(@Suppress("UNUSED_PARAMETER") mode: ControlMode): Tone = Wine
 
-    fun forMode(mode: ControlMode): Tone = when (mode) {
-        ControlMode.PRESENTATION -> Blue
-        ControlMode.MULTIMEDIA -> Violet
-    }
-
-    fun forCommand(command: Command): Tone = when (command) {
-        Command.SLIDE_NEXT -> Blue
-        Command.SLIDE_PREVIOUS -> Indigo
-        Command.MEDIA_PLAY -> Green
-        Command.MEDIA_PAUSE -> Amber
-        Command.MEDIA_NEXT_TRACK -> Violet
-        Command.MEDIA_PREVIOUS_TRACK -> Indigo
-    }
+    /** Mismo color para todos los comandos: el texto y el icono dicen cuál es. */
+    fun forCommand(@Suppress("UNUSED_PARAMETER") command: Command): Tone = Wine
 }
 
 private val LightColors = ColorScheme(
@@ -108,10 +94,10 @@ private val LightColors = ColorScheme(
     outlineVariant = SmartColors.Outline,
     background = SmartColors.Background,
     onBackground = SmartColors.Text,
-    error = SmartColors.Red.main,
-    errorContainer = SmartColors.Red.soft,
-    onError = SmartColors.Red.onMain,
-    onErrorContainer = SmartColors.Red.onSoft,
+    error = SmartColors.Error.onMain,
+    errorContainer = SmartColors.Error.soft,
+    onError = Color.White,
+    onErrorContainer = SmartColors.Error.onSoft,
 )
 
 @Composable

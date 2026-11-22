@@ -57,7 +57,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -313,7 +312,7 @@ private fun pageBackground(pagerState: PagerState): Color {
 }
 
 private val Page.background: Color
-    get() = mode?.let { SmartColors.forMode(it).soft } ?: SmartColors.Background
+    get() = SmartColors.Background
 
 /** Las pantallas que se alejan del centro se encogen, se desvanecen y se quedan un poco atrás. */
 private fun Modifier.pageTransition(pagerState: PagerState, page: Int): Modifier = graphicsLayer {
@@ -350,7 +349,7 @@ private fun HomePage(link: LinkState) {
         BasicText(
             text = "SmartControl",
             style = TextStyle(
-                brush = Brush.linearGradient(SmartColors.TitleGradient),
+                color = SmartColors.Brand.main,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -478,7 +477,7 @@ private fun GesturePage(
         Spacer(Modifier.height(2.dp))
         if (mode == ControlMode.MULTIMEDIA) {
             // Reproducir y pausar no tienen gesto: dos botones grandes, órdenes distintas (sin alternar).
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(Command.MEDIA_PLAY, Command.MEDIA_PAUSE).forEach { command ->
                     val done = (lastResult as? CommandResult.Executed)?.command == command ||
                         (lastResult as? CommandResult.Simulated)?.command == command
@@ -549,7 +548,7 @@ private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, 
             modifier = Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(Brush.verticalGradient(listOf(tone.main, tone.dark))),
+                .background(tone.main),
         ) {
             Icon(
                 gesture.icon,
@@ -563,7 +562,7 @@ private fun GestureRow(gesture: WristGesture, command: Command, flashKey: Int?, 
         }
         Spacer(Modifier.width(8.dp))
         Column {
-            Text(command.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = tone.onSoft, maxLines = 1)
+            Text(command.rowLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = tone.onSoft, maxLines = 1)
             Text(gesture.label, fontSize = 12.sp, color = SmartColors.TextMuted, maxLines = 1)
         }
     }
@@ -583,14 +582,14 @@ private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(44.dp)
+            .size(38.dp)
             .graphicsLayer {
                 val grow = 1f + 0.12f * flash.value
                 scaleX = grow
                 scaleY = grow
             }
             .clip(CircleShape)
-            .background(Brush.verticalGradient(listOf(tone.main, tone.dark)))
+            .background(tone.main)
             .clickable(onClick = onClick, role = Role.Button)
             .semantics { contentDescription = command.label },
     ) {
@@ -598,10 +597,21 @@ private fun PlaybackButton(command: Command, flashKey: Int?, onClick: () -> Unit
             if (command == Command.MEDIA_PLAY) SmartIcons.Play else SmartIcons.Pause,
             contentDescription = null,
             tint = tone.onMain,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(19.dp),
         )
     }
 }
+
+/**
+ * Etiqueta corta de las filas de la guía: el título de la pantalla ya dice si son diapositivas o
+ * canciones, y así las dos filas caben enteras en la pantalla redonda.
+ */
+private val Command.rowLabel: String
+    get() = when (this) {
+        Command.SLIDE_NEXT, Command.MEDIA_NEXT_TRACK -> "Siguiente"
+        Command.SLIDE_PREVIOUS, Command.MEDIA_PREVIOUS_TRACK -> "Anterior"
+        else -> label
+    }
 
 private val WristGesture.label: String
     get() = when (this) {
@@ -630,9 +640,9 @@ private fun HelpPage() {
         }
         Spacer(Modifier.height(10.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            HelpStep(SmartIcons.Swipe, SmartColors.Blue, "Elige un modo")
-            HelpStep(SmartIcons.TwistOut, SmartColors.Violet, "Gira la muñeca")
-            HelpStep(SmartIcons.Check, SmartColors.Green, "Mira el resultado")
+            HelpStep(SmartIcons.Swipe, SmartColors.Brand, "Elige un modo")
+            HelpStep(SmartIcons.TwistOut, SmartColors.Brand, "Gira la muñeca")
+            HelpStep(SmartIcons.Check, SmartColors.Brand, "Mira el resultado")
         }
     }
 }
@@ -695,7 +705,7 @@ private fun PageIndicator(pagerState: PagerState, modifier: Modifier = Modifier)
             val selected = pagerState.currentPage == page.ordinal
             val length by animateDpAsState(if (selected) 18.dp else 6.dp, spring(dampingRatio = 0.7f))
             val color = if (selected) {
-                page.mode?.let { SmartColors.forMode(it).main } ?: SmartColors.Brand.main
+                SmartColors.Brand.main
             } else {
                 SmartColors.Outline
             }

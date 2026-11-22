@@ -84,8 +84,8 @@ internal static class HighContrastTests
         });
         WithHighContrast(false, () =>
         {
-            Same(Color.FromArgb(0xF2, 0xF5, 0xFB), Palette.Background, "fondo normal");
-            Same(Color.FromArgb(0x5E, 0x68, 0x7A), Palette.TextMuted, "texto secundario normal");
+            Same(Color.FromArgb(0xF7, 0xF7, 0xF8), Palette.Background, "fondo normal");
+            Same(Color.FromArgb(0x63, 0x63, 0x6B), Palette.TextMuted, "texto secundario normal");
         });
     }
 
@@ -102,7 +102,7 @@ internal static class HighContrastTests
                 var receiver = new LocalCommandReceiver(validator, new SimulatedCommandExecutor(), log, port: 0);
                 using var form = new MainForm(receiver, log, "d", new string('A', 64));
                 var subtitle = Descendants(form).OfType<Label>().Single(l => l.Text.StartsWith("Controla tus presentaciones", StringComparison.Ordinal));
-                Same(Color.FromArgb(0x5E, 0x68, 0x7A), subtitle.ForeColor, "antes: texto secundario de la paleta");
+                Same(Color.FromArgb(0x63, 0x63, 0x6B), subtitle.ForeColor, "antes: texto secundario de la paleta");
 
                 Palette.HighContrast = true;
                 form.ApplyTheme();
@@ -118,8 +118,8 @@ internal static class HighContrastTests
 
                 Palette.HighContrast = false;
                 form.ApplyTheme();
-                Same(Color.FromArgb(0xF2, 0xF5, 0xFB), form.BackColor, "después: fondo normal");
-                Same(Color.FromArgb(0x5E, 0x68, 0x7A), subtitle.ForeColor, "después: texto secundario normal");
+                Same(Color.FromArgb(0xF7, 0xF7, 0xF8), form.BackColor, "después: fondo normal");
+                Same(Color.FromArgb(0x63, 0x63, 0x6B), subtitle.ForeColor, "después: texto secundario normal");
             });
         }
         finally
@@ -141,7 +141,7 @@ internal static class HighContrastTests
         using var button = new SmartButton { Text = "", Kind = ButtonKind.Primary, Size = new Size(120, 40) };
         host.Controls.Add(button);
 
-        WithHighContrast(false, () => Same(Color.FromArgb(0x25, 0x63, 0xEB), Center(button), "principal sin contraste alto"));
+        WithHighContrast(false, () => Same(Color.FromArgb(0x8E, 0x1C, 0x3A), Center(button), "principal sin contraste alto"));
         WithHighContrast(true, () =>
         {
             Same(SystemColors.ButtonFace, Center(button), "normal");

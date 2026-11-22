@@ -693,7 +693,8 @@ internal sealed class MainForm : Form
                 }
                 else
                 {
-                    _stateDot.DotColor = Palette.Accent;
+                    // El color principal queda para lo activo: en espera, gris.
+                    _stateDot.DotColor = Palette.Idle;
                     _stateTitle.Text = "Esperando al reloj";
                     _stateDetail.Text = "Abre SmartControl en el reloj. Tiene que estar en la misma red Wi-Fi que este equipo.";
                 }
